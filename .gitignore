@@ -1,0 +1,30 @@
+# Secrets — never commit real keys
+.env
+*.env
+!.env.example
+
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.log
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local data / uploads (keep synthetic test data out of the repo too)
+uploads/
+*.db
+*.sqlite3
