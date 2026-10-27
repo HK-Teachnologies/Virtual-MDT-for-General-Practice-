@@ -26,38 +26,46 @@ export default function Login() {
   if (loading) return <p>Checking sign-in…</p>;
 
   return (
-    <form className="auth-form panel" onSubmit={submit}>
-      <h1>Sign in</h1>
-      <p className="muted">
-        Use your Virtual MDT account. The demo admin account comes from the backend&apos;s
-        <code> ADMIN_EMAIL / ADMIN_PASSWORD</code>.
-      </p>
-      <div className="field">
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          type="email"
-          required
-          autoComplete="username"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+    <div className="login-split">
+      <form className="login-form" onSubmit={submit}>
+        <h1>Sign in</h1>
+        <p className="muted">
+          Use your Virtual MDT account. The demo admin account comes from the backend&apos;s
+          <code> ADMIN_EMAIL / ADMIN_PASSWORD</code>.
+        </p>
+        <div className="field">
+          <label htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            required
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+        {error && <p className="error">{error}</p>}
+        <button className="btn btn-primary" type="submit" disabled={busy}>
+          {busy ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+      <div className="login-side">
+        <img
+          src="/login-side.jpg"
+          alt="Ugandan medical officer reviewing a patient case on a tablet"
         />
       </div>
-      <div className="field">
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </div>
-      {error && <p className="error">{error}</p>}
-      <button className="btn btn-primary" type="submit" disabled={busy}>
-        {busy ? 'Signing in…' : 'Sign in'}
-      </button>
-    </form>
+    </div>
   );
 }

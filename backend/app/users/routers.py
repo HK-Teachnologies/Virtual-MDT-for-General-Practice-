@@ -61,3 +61,12 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 @router.get("/me", response_model=UserRead)
 def me(current: User = Depends(get_current_user)):
     return current
+
+
+@router.get("/users", response_model=list[UserRead])
+def list_users(current: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
+    return db.scalars(select(User).order_by(User.email)).all()
