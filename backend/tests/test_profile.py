@@ -1,10 +1,14 @@
 from fastapi.testclient import TestClient
 
+from .conftest import admin_token
+
 
 def _token(client: TestClient) -> str:
+    admin = {"Authorization": f"Bearer {admin_token(client)}"}
     client.post(
         "/api/auth/register",
         json={"email": "clinician@example.com", "password": "secret123"},
+        headers=admin,
     )
     login = client.post(
         "/api/auth/login",

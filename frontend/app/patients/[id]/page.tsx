@@ -5,18 +5,17 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import CaptureForm from '../../../components/CaptureForm';
 import MdtBriefView from '../../../components/MdtBriefView';
-import VisitTimeline from '../../../components/VisitTimeline';
+import VisitCard from '../../../components/VisitCard';
 import { getBrief, getPatient } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
-import type { MdtBrief, Patient, Visit } from '../../../lib/types';
+import type { ApiPatient, ApiVisit, MdtBrief } from '../../../lib/types';
 
 export default function PatientRecord() {
   const params = useParams();
   const router = useRouter();
   const { user, token, loading: authLoading } = useAuth();
   const id = params.id;
-  const [patient, setPatient] = useState<Patient | null>(null);
-  const [visits, setVisits] = useState<Visit[]>([]);
+  const [patient, setPatient] = useState<ApiPatient | null>(null);
   const [brief, setBrief] = useState<MdtBrief | null>(null);
   const [loadingBrief, setLoadingBrief] = useState(false);
   const [missing, setMissing] = useState(false);
@@ -26,25 +25,24 @@ export default function PatientRecord() {
   }, [authLoading, user, router]);
 
   useEffect(() => {
-    if (!id || Array.isArray(id) || !user) return;
-    getPatient(id, token ?? undefined).then((p) => {
+    if (!id || Array.isArray(id) || !user || !token) return;
+    getPatient(id, token).then((p) => {
       if (!p) {
         setMissing(true);
         return;
       }
       setPatient(p);
-      setVisits(p.visits);
     });
   }, [id, user, token]);
 
   async function prepareReview() {
     if (!id || Array.isArray(id)) return;
     setLoadingBrief(true);
-    setBrief(await getBrief(id, token ?? undefined));
+    setBrief(await getBrief(id));
     setLoadingBrief(false);
   }
 
-  if (authLoading || !user) {
+  if (authLoading || !user || !token) {
     return <p>Checking sign-in…</p>;
   }
 
@@ -66,30 +64,52 @@ export default function PatientRecord() {
       <Link className="back-link" href="/">
         ← Back to patients
       </Link>
-      <h1>{patient.name}</h1>
+      <h1>{patient.full_name}</h1>
       <p className="muted">
-        {patient.age} years · {patient.sex}
+        {[
+          patient.phone,
+          patient.email,
+          patient.district,
+          patient.date_of_birth,
+          patient.sex,
+        ]
+          .filter(Boolean)
+          .join(' · ') || 'No contact details on record'}
       </p>
 
       <section className="panel">
-        <h2>Known conditions</h2>
-        <p>{patient.conditions.join(' · ')}</p>
-        <h2>Current medications</h2>
-        <ul>
-          {patient.medications.map((m) => (
-            <li key={m}>{m}</li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="panel">
         <h2>Visit timeline</h2>
-        <VisitTimeline visits={visits} />
+        {patient.visits.length === 0 ? (
+          <p className="muted">No visits recorded yet.</p>
+        ) : (
+          [...patient.visits]
+            .sort((a, b) => b.visit_date.localeCompare(a.visit_date))
+            .map((v: ApiVisit) => (
+              <VisitCard
+                key={v.id}
+                patientId={patient.id}
+                visit={v}
+                token={token}
+                onChange={(updated) =>
+                  setPatient({
+                    ...patient,
+                    visits: patient.visits.map((old) =>
+                      old.id === updated.id ? updated : old,
+                    ),
+                  })
+                }
+              />
+            ))
+        )}
       </section>
 
       <section className="panel">
         <h2>Capture today&apos;s case</h2>
-        <CaptureForm onAdd={(v) => setVisits((prev) => [...prev, v])} />
+        <CaptureForm
+          patientId={patient.id}
+          token={token}
+          onAdded={(v) => setPatient({ ...patient, visits: [v, ...patient.visits] })}
+        />
       </section>
 
       <section className="panel">

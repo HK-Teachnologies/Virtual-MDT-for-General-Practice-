@@ -31,7 +31,17 @@ def get_current_user(
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def register(data: UserCreate, db: Session = Depends(get_db)):
+def register(
+    data: UserCreate,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Only admins create users (doctors, nurses, medical officers, ...).
+    # The very first admin comes from the ADMIN_EMAIL/ADMIN_PASSWORD seed.
+    if current.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
     existing = db.scalar(select(User).where(User.email == data.email))
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -39,6 +49,7 @@ def register(data: UserCreate, db: Session = Depends(get_db)):
         email=data.email,
         hashed_password=hash_password(data.password),
         full_name=data.full_name,
+        role=data.role,
     )
     db.add(user)
     db.commit()

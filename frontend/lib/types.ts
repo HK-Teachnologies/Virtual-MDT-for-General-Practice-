@@ -42,3 +42,47 @@ export interface MdtBrief {
   overdueChecks: string[];
   generatedAt: string;
 }
+
+// Shapes returned by the FastAPI backend.
+export interface ApiAttachment {
+  id: string;
+  filename: string;
+  content_type: string | null;
+}
+
+export interface ApiClinic {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+}
+
+export interface ApiSection {
+  id: string;
+  section: string;
+  content: string;
+  created_at: string;
+}
+
+export interface ApiVisit {
+  id: string;
+  visit_date: string;
+  notes: string;
+  source: string;
+  clinic: { id: string; name: string } | null;
+  attachments: ApiAttachment[];
+  sections: ApiSection[];
+}
+
+export interface ApiPatient {
+  id: string;
+  full_name: string;
+  date_of_birth: string | null;
+  sex: string | null;
+  phone: string | null;
+  email: string | null;
+  district: string | null;
+  address: string | null;
+  created_at: string;
+  visits: ApiVisit[];
+}

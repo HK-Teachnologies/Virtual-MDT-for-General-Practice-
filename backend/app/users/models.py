@@ -6,6 +6,21 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
 
 
+# Uganda health workforce roles usable in this system.
+USER_ROLES = frozenset(
+    {
+        "admin",
+        "doctor",
+        "medical_officer",
+        "clinical_officer",
+        "nurse",
+        "midwife",
+        "pharmacist",
+        "normal_user",
+    }
+)
+
+
 class User(Base):
     __tablename__ = "users"
 

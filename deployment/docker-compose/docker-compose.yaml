@@ -40,6 +40,8 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://mdt:${POSTGRES_PASSWORD:-changeme}@db:5432/virtualmdt
+    volumes:
+      - uploads:/code/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -72,3 +74,4 @@ volumes:
   caddy_data:
   caddy_config:
   pgdata:
+  uploads:

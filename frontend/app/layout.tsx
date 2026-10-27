@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import Link from 'next/link';
 import Sidebar from '../components/Sidebar';
-import UserMenu from '../components/UserMenu';
+import TopNav from '../components/TopNav';
 import { AuthProvider } from '../lib/auth';
 import './globals.css';
 
@@ -27,9 +26,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                     <span className="brand">Virtual MDT</span>
                     <span className="muted">for General Practice — demo</span>
                   </span>
-                  <span>
-                    <Link href="/about">About</Link> <UserMenu />
-                  </span>
+                  <TopNav />
                 </div>
               </header>
               <main className="container">{children}</main>

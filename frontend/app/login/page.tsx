@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../../lib/auth';
@@ -59,6 +60,9 @@ export default function Login() {
         <button className="btn btn-primary" type="submit" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
+        <p className="muted">
+          Are you a patient? <Link href="/patient/login">Sign in with a one-time code</Link>
+        </p>
       </form>
       <div className="login-side">
         <img

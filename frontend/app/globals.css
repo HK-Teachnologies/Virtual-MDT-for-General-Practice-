@@ -126,6 +126,35 @@ section.panel {
   background: var(--accent);
 }
 
+.timeline-title {
+  font-weight: 700;
+}
+
+.visit-card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px 20px;
+  margin: 14px 0;
+}
+
+.visit-card h4 {
+  margin: 16px 0 4px;
+  font-size: 0.9rem;
+}
+
+.section-item {
+  border-top: 1px solid var(--line);
+  padding: 8px 0;
+}
+
+.section-item p {
+  margin: 4px 0;
+}
+
+.attach-list {
+  list-style: disc;
+}
+
 .timeline-date {
   font-weight: 600;
   font-size: 0.9rem;
@@ -155,10 +184,12 @@ section.panel {
 }
 
 textarea,
+select,
 input[type="file"],
 input[type="email"],
 input[type="password"],
-input[type="text"] {
+input[type="text"],
+input[type="date"] {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--line);
@@ -231,6 +262,35 @@ input[type="text"] {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+}
+
+.topnav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link {
+  padding: 6px 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nav-link:hover {
+  background: #e2ebe9;
+}
+
+.nav-link.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.user-chip {
+  margin-left: 8px;
+  white-space: nowrap;
 }
 
 .shell {

@@ -1,26 +1,6 @@
 from fastapi.testclient import TestClient
-from sqlalchemy import select
 
-from app.db.session import SessionLocal
-from app.users.models import User
-
-
-def _register(client: TestClient, email: str):
-    r = client.post(
-        "/api/auth/register", json={"email": email, "password": "secret123"}
-    )
-    assert r.status_code == 201, r.text
-
-
-def _promote(email: str):
-    db = SessionLocal()
-    try:
-        user = db.scalar(select(User).where(User.email == email))
-        assert user is not None
-        user.role = "admin"
-        db.commit()
-    finally:
-        db.close()
+from .conftest import admin_token
 
 
 def _login(client: TestClient, email: str) -> str:
@@ -32,12 +12,15 @@ def _login(client: TestClient, email: str) -> str:
 
 
 def test_list_users_admin_only(client: TestClient):
-    _register(client, "doctor9@example.com")
-    _register(client, "boss9@example.com")
-    _promote("boss9@example.com")
+    admin = {"Authorization": f"Bearer {admin_token(client)}"}
 
-    admin = {"Authorization": f"Bearer {_login(client, 'boss9@example.com')}"}
-    doctor = {"Authorization": f"Bearer {_login(client, 'doctor9@example.com')}"}
+    for email, role in [("doctor9@example.com", "doctor"), ("boss9@example.com", "admin")]:
+        r = client.post(
+            "/api/auth/register",
+            json={"email": email, "password": "secret123", "role": role},
+            headers=admin,
+        )
+        assert r.status_code == 201, r.text
 
     listed = client.get("/api/auth/users", headers=admin)
     assert listed.status_code == 200, listed.text
@@ -45,6 +28,7 @@ def test_list_users_admin_only(client: TestClient):
     assert "doctor9@example.com" in emails
     assert "boss9@example.com" in emails
 
+    doctor = {"Authorization": f"Bearer {_login(client, 'doctor9@example.com')}"}
     forbidden = client.get("/api/auth/users", headers=doctor)
     assert forbidden.status_code == 403
 
