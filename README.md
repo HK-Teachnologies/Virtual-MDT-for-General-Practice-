@@ -88,6 +88,18 @@ npm install
 npm run dev
 ```
 
+## Backend API
+
+Users and auth (FastAPI, served same-origin under `/api` in compose):
+
+- `POST /api/auth/register` — `{email, password, full_name?}` → 201 + user
+- `POST /api/auth/login` — form `username` (= email) + `password` → `{access_token}`
+- `GET /api/auth/me` — Bearer token → current user
+- `GET /api/health` — liveness check
+
+Backend settings come from `deployment/docker-compose/.env` (see `.env.example`):
+`SECRET_KEY` signs the login tokens — set a long random value, never commit it.
+
 ## Safety and scope
 
 - Clinician-facing only; questions and flagged concerns, not verdicts.

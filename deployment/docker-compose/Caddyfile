@@ -1,0 +1,11 @@
+# Localhost entrypoint over HTTPS. Caddy provisions a locally-signed cert for
+# `localhost` automatically on first start (browsers will show a one-time
+# "not secure" warning until you click through it).
+localhost {
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

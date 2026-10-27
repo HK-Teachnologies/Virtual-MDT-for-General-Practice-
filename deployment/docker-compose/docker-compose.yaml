@@ -1,0 +1,74 @@
+name: virtual-mdt
+
+services:
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+      args:
+        # Origin only: lib/api.ts already prefixes every path with /api.
+        NEXT_PUBLIC_API_URL: https://localhost
+    ports:
+      - "3000:3000"
+    networks:
+      - mdt
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      # Note: a Windows process holds IPv6 :80 on this machine, so the
+      # `localhost` name only works where the client falls back to 127.0.0.1.
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Persist the local CA + certs so browsers don't see a new cert on every recreate.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+    networks:
+      - mdt
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://mdt:${POSTGRES_PASSWORD:-changeme}@db:5432/virtualmdt
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - mdt
+    restart: unless-stopped
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: virtualmdt
+      POSTGRES_USER: mdt
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mdt -d virtualmdt"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - mdt
+    restart: unless-stopped
+
+networks:
+  mdt:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pgdata:
