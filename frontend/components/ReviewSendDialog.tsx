@@ -36,10 +36,17 @@ export default function ReviewSendDialog({
         if (list) {
           const specs = list as ApiSpecialty[];
           setRoster(specs);
-          setSpecIds(specs.map((s) => s.id));
+          // Pre-select only the specialties this review is about, matched
+          // by name. Unticked specialties are still listed for hand-picking.
+          const wanted = new Set(
+            (brief.specialties ?? []).map((s) => s.trim().toLowerCase()),
+          );
+          const matched = specs.filter((s) => wanted.has(s.name.trim().toLowerCase()));
+          setSpecIds((matched.length > 0 ? matched : specs).map((s) => s.id));
         }
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   function toggleSpec(id: string) {
@@ -147,7 +154,8 @@ export default function ReviewSendDialog({
       ) : (
         <form onSubmit={submit}>
           <p className="muted">
-            Everyone in a ticked specialty is notified. Untick anyone to exclude them.
+            Specialties from this review are pre-ticked — everyone in a ticked specialty
+            is notified. Untick anyone to exclude them, or pick specific people below.
           </p>
           {roster.map((s) => (
             <div key={s.id} className="field">
