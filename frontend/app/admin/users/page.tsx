@@ -160,7 +160,8 @@ export default function AdminUsers() {
       ) : (
         <>
           <p className="muted">{users.length} registered accounts.</p>
-          <table className="data-table">
+          <div className="table-scroll">
+        <table className="data-table">
             <thead>
               <tr>
                 <th>Email</th>
@@ -180,6 +181,7 @@ export default function AdminUsers() {
               ))}
             </tbody>
           </table>
+        </div>
         </>
       )}
     </div>

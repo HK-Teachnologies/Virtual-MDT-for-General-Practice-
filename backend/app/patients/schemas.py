@@ -2,6 +2,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
+from app.mdt.schemas import TranscriptionRead
+
 
 class PatientCreate(BaseModel):
     full_name: str
@@ -19,6 +21,7 @@ class AttachmentRead(BaseModel):
     id: str
     filename: str
     content_type: str | None = None
+    transcription: TranscriptionRead | None = None
 
 
 class ClinicRef(BaseModel):

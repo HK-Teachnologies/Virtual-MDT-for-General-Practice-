@@ -149,6 +149,7 @@ export default function AdminClinics() {
       {!clinics ? (
         <p>Loading clinics…</p>
       ) : (
+        <div className="table-scroll">
         <table className="data-table">
           <thead>
             <tr>
@@ -171,6 +172,7 @@ export default function AdminClinics() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

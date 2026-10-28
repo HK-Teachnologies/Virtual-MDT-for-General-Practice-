@@ -351,6 +351,8 @@ input[type="date"] {
 
 .shell-main main {
   flex: 1;
+  min-width: 0;
+  width: 100%;
   padding-top: 28px;
 }
 
@@ -484,4 +486,149 @@ ul {
 
 li {
   margin: 4px 0;
+}
+
+/* ---------- Touch + small-screen hardening ---------- */
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Long filenames, URLs, and transcript text must wrap, never push sideways. */
+.attach-list li,
+.data-table td,
+.transcript p {
+  overflow-wrap: anywhere;
+}
+
+/* 16px inputs stop iOS Safari auto-zooming on focus. */
+textarea,
+select,
+input[type='email'],
+input[type='password'],
+input[type='text'],
+input[type='date'] {
+  font-size: 16px;
+}
+
+a,
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Tablet (portrait) ---------- */
+
+@media (max-width: 1024px) {
+  .brand-sub {
+    display: none;
+  }
+
+  .sidebar {
+    width: 200px;
+  }
+
+  section.panel,
+  .visit-card {
+    padding: 14px 16px;
+  }
+}
+
+/* ---------- Phone ---------- */
+
+@media (max-width: 720px) {
+  .container {
+    padding: 0 16px;
+  }
+
+  h1 {
+    font-size: 1.35rem;
+  }
+
+  .shell-main main {
+    padding-top: 20px;
+  }
+
+  /* Header: brand above nav instead of squeezed beside it. */
+  .site-header .container {
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    font-size: 1.1rem;
+  }
+
+  /* The email address crowds phones out; role + sign out stay. */
+  .user-email {
+    display: none;
+  }
+
+  .topnav {
+    flex-wrap: wrap;
+  }
+
+  /* 44px minimum touch targets for coarse pointers. */
+  .nav-link {
+    padding: 10px 14px;
+  }
+
+  .side-link {
+    padding: 10px 12px;
+  }
+
+  .link-btn {
+    padding: 10px 4px;
+    min-height: 44px;
+  }
+
+  .btn {
+    padding: 12px 18px;
+    min-height: 44px;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Admin tables scroll inside their own box instead of pushing the page. */
+  .table-scroll {
+    overflow-x: auto;
+    margin: 12px -4px 0;
+    padding: 0 4px 4px;
+  }
+
+  .table-scroll .data-table {
+    margin-top: 0;
+    min-width: 560px;
+  }
+
+  .visit-card {
+    padding: 12px 14px;
+  }
+
+  .login-form {
+    padding: 20px;
+  }
+}
+
+/* Touch laptops / large tablets: roomy targets without changing layout. */
+@media (pointer: coarse) and (min-width: 721px) {
+  .nav-link,
+  .side-link {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .btn {
+    min-height: 44px;
+  }
 }

@@ -6,6 +6,10 @@ DB_PATH = Path(__file__).parent / "test_tmp.db"
 if DB_PATH.exists():
     DB_PATH.unlink()
 os.environ["DATABASE_URL"] = f"sqlite:///{DB_PATH}"
+# Background AI runs inline with a deterministic echo provider: no Redis,
+# no network, no API keys needed for the suite.
+os.environ.setdefault("LLM_PROVIDER", "echo")
+os.environ.setdefault("CELERY_TASK_ALWAYS_EAGER", "1")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

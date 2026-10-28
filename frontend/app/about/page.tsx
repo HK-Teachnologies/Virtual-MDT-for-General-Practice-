@@ -1,6 +1,10 @@
+'use client';
+
 import Link from 'next/link';
+import { useAuth } from '../../lib/auth';
 
 export default function About() {
+  const { token } = useAuth();
   return (
     <div>
       <h1>About Virtual MDT</h1>
@@ -43,9 +47,15 @@ export default function About() {
       </section>
 
       <p>
-        <Link className="btn btn-primary" href="/login">
-          Sign in
-        </Link>
+        {token ? (
+          <Link className="btn btn-primary" href="/">
+            Go to patients
+          </Link>
+        ) : (
+          <Link className="btn btn-primary" href="/login">
+            Sign in
+          </Link>
+        )}
       </p>
     </div>
   );

@@ -9,6 +9,8 @@ from app.core.config import settings
 from app.clinics import models as clinic_models  # noqa: F401 — register for create_all
 from app.clinics import routers as clinic_routers
 from app.health import routers as health_routers
+from app.mdt import models as mdt_models  # noqa: F401 — register for create_all
+from app.mdt import routers as mdt_routers
 from app.patient_auth import models as otp_models  # noqa: F401 — register for create_all
 from app.patient_auth import routers as patient_auth_routers
 from app.patients import routers as patient_routers
@@ -38,3 +40,4 @@ app.include_router(
     patient_auth_routers.router, prefix="/api/patient-auth", tags=["patient-auth"]
 )
 app.include_router(clinic_routers.router, prefix="/api/clinics", tags=["clinics"])
+app.include_router(mdt_routers.router, prefix="/api/mdt", tags=["mdt"])

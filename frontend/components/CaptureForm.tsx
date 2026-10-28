@@ -14,7 +14,7 @@ export default function CaptureForm({
   onAdded: (v: ApiVisit) => void;
 }) {
   const today = () => new Date().toISOString().slice(0, 10);
-  const [photo, setPhoto] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [source, setSource] = useState('typed');
@@ -33,20 +33,18 @@ export default function CaptureForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handlePhoto(file: File | undefined) {
-    if (!file) {
-      setPhoto(null);
-      setPreview(null);
-      return;
-    }
-    setPhoto(file);
-    setPreview(URL.createObjectURL(file));
-    setSource('photo');
+  function handleFiles(list: FileList | null) {
+    const picked = list ? Array.from(list) : [];
+    setFiles(picked);
+    const firstImage = picked.find((f) => f.type.startsWith('image/'));
+    setPreview(firstImage ? URL.createObjectURL(firstImage) : null);
+    if (picked.some((f) => f.type.startsWith('audio/'))) setSource('dictation');
+    else if (picked.length > 0) setSource('photo');
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!notes.trim() && !photo) return;
+    if (!notes.trim() && files.length === 0) return;
     setBusy(true);
     setError(null);
     try {
@@ -55,11 +53,11 @@ export default function CaptureForm({
       form.append('source', source);
       form.append('visit_date', visitDate);
       if (clinicId) form.append('clinic_id', clinicId);
-      if (photo) form.append('files', photo);
+      for (const file of files) form.append('files', file);
       const visit = await addVisit(token, patientId, form);
       onAdded(visit);
       setNotes('');
-      setPhoto(null);
+      setFiles([]);
       setPreview(null);
       setSource('typed');
       setVisitDate(today());
@@ -93,20 +91,29 @@ export default function CaptureForm({
         </select>
       </div>
       <div className="field">
-        <label htmlFor="photo">Photograph notes or test slips</label>
+        <label htmlFor="photo">Photos, dictation audio, or documents</label>
         <input
           id="photo"
           type="file"
-          accept="image/*"
-          onChange={(e) => handlePhoto(e.target.files?.[0])}
+          multiple
+          accept="image/*,audio/*,.pdf,.txt,.md"
+          onChange={(e) => handleFiles(e.target.files)}
         />
-        {preview && photo && photo.type.startsWith('image/') && (
+        {preview && (
           // Plain img is enough for a local preview; no remote optimisation needed.
           <img className="photo-preview" src={preview} alt="Preview of photographed notes" />
         )}
-        {preview && photo && !photo.type.startsWith('image/') && (
-          <p className="muted">Attached: {photo.name}</p>
-        )}
+        {files
+          .filter((f) => !f.type.startsWith('image/'))
+          .map((f) => (
+            <p className="muted" key={f.name}>
+              Attached: {f.name}
+            </p>
+          ))}
+        <p className="muted">
+          Photos and audio are read by the AI; PDFs and text files are read
+          directly. Every machine read is shown for verification.
+        </p>
       </div>
       <div className="field">
         <label htmlFor="notes">Notes (type or dictate)</label>

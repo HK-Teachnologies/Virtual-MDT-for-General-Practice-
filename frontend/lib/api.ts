@@ -1,5 +1,5 @@
 import { mockBrief } from './mock';
-import type { ApiPatient, ApiSection, ApiVisit, MdtBrief } from './types';
+import type { ApiPatient, ApiSection, ApiTranscription, ApiVisit, MdtBrief } from './types';
 
 // Base URL of the FastAPI backend (origin only: every path below adds /api).
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -131,6 +131,20 @@ export async function updateVisit(
   });
   if (!res.ok) throw new Error(await readError(res));
   return (await res.json()) as ApiVisit;
+}
+
+export async function updateTranscription(
+  token: string,
+  attachmentId: string,
+  data: { text?: string; verified?: boolean },
+): Promise<ApiTranscription> {
+  const res = await fetch(`${API_BASE}/api/mdt/transcriptions/${attachmentId}`, {
+    method: 'PATCH',
+    headers: authHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiTranscription;
 }
 
 export async function downloadAttachment(

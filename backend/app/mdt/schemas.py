@@ -1,0 +1,66 @@
+from datetime import datetime
+
+from pydantic import BaseModel
+
+
+class BriefRequest(BaseModel):
+    patient_id: str
+
+
+class BriefItemRead(BaseModel):
+    id: str
+    specialty: str
+    concern: str
+    citation: str
+    certainty: str
+    status: str
+    edited_text: str | None = None
+
+
+class BriefRunRead(BaseModel):
+    id: str
+    patient_id: str
+    status: str
+    current_step: str
+    model: str
+    prompt_version: str
+    specialties: list[str] = []
+    error: str = ""
+    created_at: datetime
+    completed_at: datetime | None = None
+    items: list[BriefItemRead] = []
+
+
+class BriefItemUpdate(BaseModel):
+    status: str
+    edited_text: str | None = None
+
+
+class GuidelineRead(BaseModel):
+    id: str
+    title: str
+    version: str
+    active: bool
+    chunks: int
+    index_status: str = "ready"
+    index_error: str = ""
+
+
+class GuidelineUpdate(BaseModel):
+    active: bool
+
+
+class TranscriptionRead(BaseModel):
+    id: str
+    attachment_id: str
+    kind: str
+    text: str
+    verified: bool
+    model: str
+
+
+class TranscriptionUpdate(BaseModel):
+    """Staff correction/verification of a machine read."""
+
+    text: str | None = None
+    verified: bool | None = None

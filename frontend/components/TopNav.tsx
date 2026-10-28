@@ -22,7 +22,8 @@ export default function TopNav() {
       )}
       {!loading && user && (
         <span className="user-chip">
-          {user.email} <span className="badge">{user.role}</span>{' '}
+          <span className="user-email">{user.email}</span>{' '}
+          <span className="badge">{user.role}</span>{' '}
           <button className="link-btn" type="button" onClick={logout}>
             Sign out
           </button>

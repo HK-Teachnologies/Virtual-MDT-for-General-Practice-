@@ -12,6 +12,12 @@ export const metadata: Metadata = {
   icons: { icon: '/favicon.svg' },
 };
 
+// Without this, phones render the ~980px desktop layout scaled down.
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
@@ -24,7 +30,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <div className="container">
                   <span>
                     <span className="brand">Virtual MDT</span>
-                    <span className="muted">for General Practice — demo</span>
+                    <span className="muted brand-sub">for General Practice — demo</span>
                   </span>
                   <TopNav />
                 </div>

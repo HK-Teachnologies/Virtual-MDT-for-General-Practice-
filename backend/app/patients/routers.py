@@ -22,6 +22,8 @@ from app.patients.schemas import (
     VisitRead,
     VisitUpdate,
 )
+from app.mdt.models import Transcription
+from app.mdt.tasks import embed_patient_chunks, safe_delay, transcribe_attachment
 from app.users.models import User
 from app.users.routers import get_current_user
 
@@ -31,6 +33,22 @@ router = APIRouter()
 def _safe_filename(name: str) -> str:
     stem = Path(name).name
     return re.sub(r"[^A-Za-z0-9_.-]", "_", stem) or "upload"
+
+
+def _with_transcriptions(db: Session, attachments: list[Attachment]) -> None:
+    """Attach each file's machine read (if any) for the nested API shape."""
+    if not attachments:
+        return
+    rows = (
+        db.scalars(
+            select(Transcription).where(
+                Transcription.attachment_id.in_([a.id for a in attachments])
+            )
+        ).all()
+    )
+    by_attachment = {t.attachment_id: t for t in rows}
+    for attachment in attachments:
+        attachment.transcription = by_attachment.get(attachment.id)
 
 
 @router.post("", response_model=PatientRead, status_code=status.HTTP_201_CREATED)
@@ -82,6 +100,7 @@ def load_patient_detail(db: Session, patient_id: str) -> Patient:
         visit.attachments = (
             db.scalars(select(Attachment).where(Attachment.visit_id == visit.id)).all()
         )
+        _with_transcriptions(db, visit.attachments)
         visit.clinic = (
             db.get(Clinic, visit.clinic_id) if visit.clinic_id else None
         )
@@ -167,8 +186,13 @@ def add_visit(
     db.commit()
     db.refresh(visit)
     visit.attachments = attachments
+    _with_transcriptions(db, attachments)
     visit.clinic = clinic
     visit.sections = []
+    # Background AI: read uploaded photos/audio, then refresh patient vectors.
+    for attachment in attachments:
+        safe_delay(transcribe_attachment, attachment.id)
+    safe_delay(embed_patient_chunks, patient_id)
     return visit
 
 
@@ -229,6 +253,7 @@ def add_section(
     db.add(section)
     db.commit()
     db.refresh(section)
+    safe_delay(embed_patient_chunks, patient_id)
     return section
 
 
@@ -242,6 +267,7 @@ def update_section(
     section = db.get(VisitSection, section_id)
     if section is None:
         raise HTTPException(status_code=404, detail="Section not found")
+    visit = db.get(Visit, section.visit_id)
     patch = data.model_dump(exclude_unset=True)
     if "section" in patch and patch["section"] not in SECTION_TYPES:
         raise HTTPException(
@@ -252,6 +278,8 @@ def update_section(
         setattr(section, field, value)
     db.commit()
     db.refresh(section)
+    if visit is not None:
+        safe_delay(embed_patient_chunks, visit.patient_id)
     return section
 
 
@@ -264,8 +292,11 @@ def delete_section(
     section = db.get(VisitSection, section_id)
     if section is None:
         raise HTTPException(status_code=404, detail="Section not found")
+    visit = db.get(Visit, section.visit_id)
     db.delete(section)
     db.commit()
+    if visit is not None:
+        safe_delay(embed_patient_chunks, visit.patient_id)
     return {"deleted": True}
 
 
@@ -300,9 +331,11 @@ def update_visit(
         setattr(visit, field, value)
     db.commit()
     db.refresh(visit)
+    safe_delay(embed_patient_chunks, visit.patient_id)
     visit.attachments = (
         db.scalars(select(Attachment).where(Attachment.visit_id == visit.id)).all()
     )
+    _with_transcriptions(db, visit.attachments)
     visit.clinic = db.get(Clinic, visit.clinic_id) if visit.clinic_id else None
     visit.sections = (
         db.scalars(

@@ -48,6 +48,16 @@ export interface ApiAttachment {
   id: string;
   filename: string;
   content_type: string | null;
+  transcription: ApiTranscription | null;
+}
+
+export interface ApiTranscription {
+  id: string;
+  attachment_id: string;
+  kind: string;
+  text: string;
+  verified: boolean;
+  model: string;
 }
 
 export interface ApiClinic {
@@ -55,6 +65,16 @@ export interface ApiClinic {
   name: string;
   description: string | null;
   active: boolean;
+}
+
+export interface ApiGuideline {
+  id: string;
+  title: string;
+  version: string;
+  active: boolean;
+  chunks: number;
+  index_status: string;
+  index_error: string;
 }
 
 export interface ApiSection {

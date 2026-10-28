@@ -16,5 +16,29 @@ class Settings(BaseSettings):
     secret_key: str = "dev-only-change-me"
     access_token_expire_minutes: int = 60 * 24
 
+    # Background jobs.
+    redis_url: str = "redis://localhost:6379/0"
+    celery_task_always_eager: bool = False
+
+    # LLM access goes through one OpenAI-compatible path (LiteLLM), so the
+    # provider is swappable without touching MDT logic. META_API_KEY is kept
+    # as a fallback because existing .env files already carry it.
+    llm_provider: str = "echo"  # echo | litellm
+    llm_api_key: str = ""
+    meta_api_key: str = ""
+    llm_api_base: str = ""  # e.g. a self-hosted LiteLLM proxy URL
+    llm_model: str = "gpt-4o-mini"
+    llm_vision_model: str = ""  # falls back to llm_model (must be multimodal)
+    llm_transcribe_model: str = "whisper-1"
+    llm_embed_model: str = "text-embedding-3-small"
+    # Must match the model server's embedding model (bge-base-en-v1.5 = 768).
+    llm_embed_dim: int = 768
+    llm_embed_batch: int = 128
+    # Local embedding server (docker compose sets this). When set, embed()
+    # calls it over HTTP so no patient text leaves the deployment; chat and
+    # transcription still go through LiteLLM. Empty = use LiteLLM/echo.
+    model_server_url: str = ""
+    prompt_version: str = "v1"
+
 
 settings = Settings()

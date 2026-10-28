@@ -6,9 +6,16 @@ import {
   deleteSection,
   downloadAttachment,
   updateSection,
+  updateTranscription,
   updateVisit,
 } from '../lib/api';
-import type { ApiAttachment, ApiSection, ApiVisit } from '../lib/types';
+import type { ApiAttachment, ApiSection, ApiTranscription, ApiVisit } from '../lib/types';
+
+const TRANSCRIPT_LABEL: Record<string, string> = {
+  image: 'Photo read',
+  audio: 'Dictation transcript',
+  document: 'Document text',
+};
 
 const SECTION_ORDER = [
   'lab',
@@ -60,8 +67,48 @@ export default function VisitCard({
   const [sectionDraft, setSectionDraft] = useState('');
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState(visit.notes);
+  const [editingTranscript, setEditingTranscript] = useState<string | null>(null);
+  const [transcriptDraft, setTranscriptDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function applyTranscript(updated: ApiTranscription) {
+    apply({
+      ...visit,
+      attachments: visit.attachments.map((a) =>
+        a.id === updated.attachment_id ? { ...a, transcription: updated } : a,
+      ),
+    });
+  }
+
+  async function saveTranscript(attachment: ApiAttachment) {
+    if (!token || !transcriptDraft.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await updateTranscription(token, attachment.id, {
+        text: transcriptDraft.trim(),
+      });
+      applyTranscript(updated);
+      setEditingTranscript(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save.');
+    }
+    setBusy(false);
+  }
+
+  async function verifyTranscript(attachment: ApiAttachment) {
+    if (!token) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await updateTranscription(token, attachment.id, { verified: true });
+      applyTranscript(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save.');
+    }
+    setBusy(false);
+  }
 
   function apply(updated: ApiVisit) {
     setVisit(updated);
@@ -193,6 +240,74 @@ export default function VisitCard({
                 </button>
               ) : (
                 <span className="muted">(sign in as staff to download)</span>
+              )}
+              {a.transcription ? (
+                <div className="transcript">
+                  <p className="muted">
+                    {TRANSCRIPT_LABEL[a.transcription.kind] ?? 'Machine read'}
+                    {a.transcription.verified ? (
+                      <span className="badge"> verified</span>
+                    ) : (
+                      <span className="badge"> AI read — verify</span>
+                    )}
+                  </p>
+                  {editingTranscript === a.id && !readOnly ? (
+                    <div className="field">
+                      <textarea
+                        rows={3}
+                        value={transcriptDraft}
+                        onChange={(e) => setTranscriptDraft(e.target.value)}
+                      />
+                      <div className="row">
+                        <button
+                          className="btn btn-primary"
+                          type="button"
+                          onClick={() => saveTranscript(a)}
+                          disabled={busy}
+                        >
+                          Save
+                        </button>
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => setEditingTranscript(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p>{a.transcription.text}</p>
+                      {!readOnly && token && (
+                        <div className="row">
+                          {!a.transcription.verified && (
+                            <button
+                              className="link-btn"
+                              type="button"
+                              onClick={() => verifyTranscript(a)}
+                              disabled={busy}
+                            >
+                              Mark verified
+                            </button>
+                          )}
+                          <button
+                            className="link-btn"
+                            type="button"
+                            onClick={() => {
+                              setEditingTranscript(a.id);
+                              setTranscriptDraft(a.transcription?.text ?? '');
+                            }}
+                          >
+                            Correct text
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : (
+                !readOnly && <p className="muted">Reading file…</p>
               )}
             </li>
           ))}

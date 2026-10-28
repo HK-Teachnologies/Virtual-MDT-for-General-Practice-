@@ -31,6 +31,7 @@ export default function Sidebar() {
           <p className="side-label">Admin</p>
           {link('/admin/users', 'Users')}
           {link('/admin/clinics', 'Clinics')}
+          {link('/admin/guidelines', 'Guidelines')}
         </>
       )}
     </aside>
