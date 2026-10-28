@@ -52,6 +52,7 @@ class ResponseRead(BaseModel):
     author_name: str | None = None
     text: str
     has_audio: bool = False
+    has_image: bool = False
     created_at: datetime
 
 

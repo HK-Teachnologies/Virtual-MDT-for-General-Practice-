@@ -113,6 +113,7 @@ def _read(db: Session, review: Review) -> ReviewRead:
                 author_name=author.full_name if author else None,
                 text=row.text,
                 has_audio=bool(row.audio_path),
+                has_image=bool(row.image_path),
                 created_at=row.created_at,
             )
         )
@@ -248,11 +249,13 @@ def respond(
     review_id: str,
     text: str = Form(default=""),
     audio: UploadFile | None = File(default=None),
+    image: UploadFile | None = File(default=None),
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Reply in text, by voice recording, or both. Voice is transcribed so
-    the response is always readable (and listenable when audio was kept)."""
+    """Reply in text, by voice recording, with a photo attached, or any mix.
+    Voice is transcribed so the response is always readable (and listenable
+    when audio was kept)."""
     review = db.get(Review, review_id)
     if review is None:
         raise HTTPException(status_code=404, detail="Review not found")
@@ -279,12 +282,34 @@ def respond(
                     raise HTTPException(
                         status_code=502, detail=f"Voice transcription failed: {exc}"
                     )
-    if not body:
+    image_path: str | None = None
+    image_content_type: str | None = None
+    if image is not None:
+        raw_image = image.file.read()
+        if raw_image:
+            if not (image.content_type or "").startswith("image/"):
+                raise HTTPException(
+                    status_code=400, detail="Only image files can be attached"
+                )
+            safe = re.sub(r"[^A-Za-z0-9_.-]", "_", Path(image.filename or "photo").name)
+            stored = f"{uuid.uuid4().hex}_{safe}"
+            image_dir = Path(settings.upload_dir) / "review_images"
+            image_dir.mkdir(parents=True, exist_ok=True)
+            (image_dir / stored).write_bytes(raw_image)
+            image_path = str(image_dir / stored)
+            image_content_type = image.content_type
+    if not body and audio_path is None and image_path is None:
         raise HTTPException(
-            status_code=400, detail="Write a response or attach a voice recording"
+            status_code=400,
+            detail="Write a response or attach a voice recording or image",
         )
     response = ReviewResponse(
-        review_id=review.id, author_id=current.id, text=body, audio_path=audio_path
+        review_id=review.id,
+        author_id=current.id,
+        text=body,
+        audio_path=audio_path,
+        image_path=image_path,
+        image_content_type=image_content_type,
     )
     db.add(response)
     if review.status == "pending":
@@ -309,6 +334,7 @@ def respond(
         author_name=author.full_name if author else None,
         text=response.text,
         has_audio=bool(audio_path),
+        has_image=bool(image_path),
         created_at=response.created_at,
     )
 
@@ -326,6 +352,45 @@ def response_audio(
     if review is None or not _can_see(db, review, current):
         raise HTTPException(status_code=403, detail="Not part of this review")
     return FileResponse(response.audio_path, media_type="audio/webm")
+
+
+@router.get("/responses/{response_id}/image")
+def response_image(
+    response_id: str,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    response = db.get(ReviewResponse, response_id)
+    if response is None or not response.image_path:
+        raise HTTPException(status_code=404, detail="No image for this response")
+    review = db.get(Review, response.review_id)
+    if review is None or not _can_see(db, review, current):
+        raise HTTPException(status_code=403, detail="Not part of this review")
+    return FileResponse(
+        response.image_path,
+        media_type=response.image_content_type or "application/octet-stream",
+    )
+
+
+@router.get("/for-patient/{patient_id}", response_model=list[ReviewRead])
+def open_for_patient(
+    patient_id: str,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Still-open reviews on one patient, newest first. Any staff viewing the
+    record can see them — this is what blocks sending a duplicate review."""
+    patient = db.get(Patient, patient_id)
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    rows = (
+        db.scalars(
+            select(Review)
+            .where(Review.patient_id == patient_id, Review.status != "closed")
+            .order_by(Review.created_at.desc())
+        ).all()
+    )
+    return [_read(db, review) for review in rows]
 
 
 @router.patch("/{review_id}", response_model=ReviewRead)

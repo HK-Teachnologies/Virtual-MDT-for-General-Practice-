@@ -7,6 +7,45 @@ import { API_BASE } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import type { ApiReview } from '../../../lib/types';
 
+function AuthedMedia({
+  responseId,
+  kind,
+  token,
+}: {
+  responseId: string;
+  kind: 'image' | 'audio';
+  token: string;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    let objectUrl: string | null = null;
+    fetch(`${API_BASE}/api/reviews/responses/${responseId}/${kind}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.blob() : null))
+      .then((blob) => {
+        if (live && blob) {
+          objectUrl = URL.createObjectURL(blob);
+          setUrl(objectUrl);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [responseId, kind, token]);
+
+  if (!url) return null;
+  return kind === 'image' ? (
+    <img className="response-photo" src={url} alt="Response attachment" />
+  ) : (
+    <audio controls src={url} />
+  );
+}
+
 export default function ReviewDetail() {
   const params = useParams();
   const router = useRouter();
@@ -21,6 +60,7 @@ export default function ReviewDetail() {
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const [photo, setPhoto] = useState<File | null>(null);
 
   const load = useCallback(async () => {
     if (!id || !token) return;
@@ -55,6 +95,7 @@ export default function ReviewDetail() {
         setError(`Could not post the response (${res.status}).`);
       } else {
         setText('');
+        setPhoto(null);
         await load();
       }
     } catch {
@@ -65,9 +106,10 @@ export default function ReviewDetail() {
 
   function submitText(e: FormEvent) {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() && !photo) return;
     const form = new FormData();
     form.append('text', text.trim());
+    if (photo) form.append('image', photo, photo.name);
     void postResponse(form);
   }
 
@@ -101,6 +143,7 @@ export default function ReviewDetail() {
       const form = new FormData();
       form.append('audio', blob, 'response.webm');
       if (text.trim()) form.append('text', text.trim());
+      if (photo) form.append('image', photo, photo.name);
       void postResponse(form);
     };
     recorderRef.current = rec;
@@ -123,7 +166,7 @@ export default function ReviewDetail() {
     setClosing(false);
   }
 
-  if (authLoading || !user) return <p>Checking sign-in…</p>;
+  if (authLoading || !user || !token) return <p>Checking sign-in…</p>;
   if (missing) {
     return (
       <div>
@@ -189,9 +232,8 @@ export default function ReviewDetail() {
                 <span className="muted">{new Date(r.created_at).toLocaleString()}</span>
               </p>
               <p>{r.text}</p>
-              {r.has_audio && (
-                <audio controls src={`${API_BASE}/api/reviews/responses/${r.id}/audio`} />
-              )}
+              {r.has_image && <AuthedMedia responseId={r.id} kind="image" token={token} />}
+              {r.has_audio && <AuthedMedia responseId={r.id} kind="audio" token={token} />}
             </article>
           ))
         )}
@@ -211,9 +253,24 @@ export default function ReviewDetail() {
                 placeholder="Your clinical opinion…"
               />
             </div>
+            <div className="field">
+              <label htmlFor="respphoto">Attach a photo (optional)</label>
+              <input
+                id="respphoto"
+                key={review.responses.length}
+                type="file"
+                accept="image/*"
+                onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+              />
+              {photo && <p className="muted">Attached: {photo.name}</p>}
+            </div>
             {error && <p className="error">{error}</p>}
             <div className="row">
-              <button className="btn btn-primary" type="submit" disabled={busy || !text.trim()}>
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={busy || (!text.trim() && !photo)}
+              >
                 {busy ? 'Sending…' : 'Send response'}
               </button>
               <button

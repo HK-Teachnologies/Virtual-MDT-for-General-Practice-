@@ -269,7 +269,7 @@ def _embed_remote(texts: list[str], dim: int) -> list[list[float]]:
 
     url = settings.model_server_url.rstrip("/") + "/embed"
     try:
-        resp = httpx.post(url, json={"texts": texts}, timeout=120.0)
+        resp = httpx.post(url, json={"texts": texts}, timeout=300.0)
         resp.raise_for_status()
         vectors = [list(v) for v in resp.json()["vectors"]]
     except Exception as exc:

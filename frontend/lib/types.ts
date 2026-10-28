@@ -110,6 +110,7 @@ export interface ApiReviewResponse {
   author_name: string | null;
   text: string;
   has_audio: boolean;
+  has_image: boolean;
   created_at: string;
 }
 

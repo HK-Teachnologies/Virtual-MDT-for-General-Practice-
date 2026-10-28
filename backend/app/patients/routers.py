@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -22,8 +22,10 @@ from app.patients.schemas import (
     VisitRead,
     VisitUpdate,
 )
-from app.mdt.models import Transcription
+from app.mdt.models import BriefItem, BriefRun, PatientChunk, Transcription
 from app.mdt.tasks import embed_patient_chunks, safe_delay, transcribe_attachment
+from app.patient_auth.models import OtpCode
+from app.reviews.models import Review, ReviewRecipient, ReviewResponse
 from app.users.models import User
 from app.users.routers import get_current_user
 
@@ -134,6 +136,87 @@ def read_patient(
     db: Session = Depends(get_db),
 ):
     return load_patient_detail(db, patient_id)
+
+
+@router.delete("/{patient_id}")
+def delete_patient(
+    patient_id: str,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Admin-only full removal: visits, sections, files, vectors, brief
+    runs, reviews, and login codes — nothing orphaned, files off disk."""
+    if current.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
+    patient = db.get(Patient, patient_id)
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    file_paths: list[str] = []
+
+    visit_ids = db.scalars(
+        select(Visit.id).where(Visit.patient_id == patient_id)
+    ).all()
+    if visit_ids:
+        attachments = db.scalars(
+            select(Attachment).where(Attachment.visit_id.in_(visit_ids))
+        ).all()
+        file_paths.extend(a.stored_path for a in attachments)
+        attachment_ids = [a.id for a in attachments]
+        if attachment_ids:
+            db.execute(
+                delete(Transcription).where(
+                    Transcription.attachment_id.in_(attachment_ids)
+                )
+            )
+            db.execute(
+                delete(Attachment).where(Attachment.id.in_(attachment_ids))
+            )
+        db.execute(
+            delete(VisitSection).where(VisitSection.visit_id.in_(visit_ids))
+        )
+        db.execute(delete(Visit).where(Visit.id.in_(visit_ids)))
+
+    db.execute(
+        delete(PatientChunk).where(PatientChunk.patient_id == patient_id)
+    )
+
+    run_ids = db.scalars(
+        select(BriefRun.id).where(BriefRun.patient_id == patient_id)
+    ).all()
+    if run_ids:
+        db.execute(delete(BriefItem).where(BriefItem.run_id.in_(run_ids)))
+        db.execute(delete(BriefRun).where(BriefRun.id.in_(run_ids)))
+
+    review_ids = db.scalars(
+        select(Review.id).where(Review.patient_id == patient_id)
+    ).all()
+    if review_ids:
+        voices = db.scalars(
+            select(ReviewResponse).where(ReviewResponse.review_id.in_(review_ids))
+        ).all()
+        file_paths.extend(v.audio_path for v in voices if v.audio_path)
+        file_paths.extend(v.image_path for v in voices if v.image_path)
+        db.execute(
+            delete(ReviewResponse).where(ReviewResponse.review_id.in_(review_ids))
+        )
+        db.execute(
+            delete(ReviewRecipient).where(ReviewRecipient.review_id.in_(review_ids))
+        )
+        db.execute(delete(Review).where(Review.id.in_(review_ids)))
+
+    db.execute(delete(OtpCode).where(OtpCode.patient_id == patient_id))
+    db.delete(patient)
+    db.commit()
+
+    for path in file_paths:
+        try:
+            Path(path).unlink(missing_ok=True)
+        except OSError:
+            continue
+    return {"deleted": True}
 
 
 @router.post("/{patient_id}/visits", response_model=VisitRead, status_code=status.HTTP_201_CREATED)

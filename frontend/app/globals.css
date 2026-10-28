@@ -256,6 +256,14 @@ a.panel {
   max-width: 100%;
 }
 
+.response-photo {
+  display: block;
+  max-width: min(100%, 560px);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 8px 0;
+}
+
 .field {
   margin: 12px 0;
   display: flex;

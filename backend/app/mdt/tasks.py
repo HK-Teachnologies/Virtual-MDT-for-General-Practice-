@@ -5,11 +5,14 @@ as a single task with per-step status updates so the frontend can poll honest
 progress. In tests (CELERY_TASK_ALWAYS_EAGER=1) everything runs inline.
 """
 
+import logging
 from datetime import datetime
 from pathlib import Path
 
 from celery import Celery
 from sqlalchemy import delete, select
+
+logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 from app.db.session import SessionLocal
@@ -267,6 +270,8 @@ def index_guideline(doc_id: str) -> str:
             return "missing"
         doc.index_status = "indexing"
         doc.index_error = ""
+        # A retry must not duplicate chunks committed by the earlier attempt.
+        db.execute(delete(GuidelineChunk).where(GuidelineChunk.doc_id == doc.id))
         db.commit()
         try:
             raw = Path(doc.stored_path).read_bytes()
@@ -280,7 +285,10 @@ def index_guideline(doc_id: str) -> str:
                 f"{doc.title} ({doc.version or 'undated'}):\n{chunk}"
                 for chunk in chunk_text(text, size=2000)
             ]
-            batch_size = max(1, settings.llm_embed_batch)
+            # Small CPU-friendly batches: one /embed call for a 1000+ page
+            # document can otherwise outlast the model-server HTTP timeout
+            # on a small box and fail the whole run.
+            batch_size = max(1, min(settings.llm_embed_batch, 32))
             for start in range(0, len(bodies), batch_size):
                 batch = bodies[start : start + batch_size]
                 vectors = llm.embed(batch)
@@ -299,6 +307,7 @@ def index_guideline(doc_id: str) -> str:
             db.commit()
             return f"{len(bodies)} chunks"
         except Exception as exc:
+            logger.exception("Guideline indexing failed for %s", doc_id)
             db.rollback()
             doc = db.get(GuidelineDoc, doc_id)
             if doc is not None:

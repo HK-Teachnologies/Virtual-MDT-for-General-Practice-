@@ -167,3 +167,111 @@ def _staff_and_token(client: TestClient, admin: str, email: str, role: str = "do
         "/api/auth/me", headers={"Authorization": f"Bearer {r.json()['access_token']}"}
     ).json()
     return me["id"], r.json()["access_token"]
+
+
+def _open_review(
+    client: TestClient,
+    other_id: str,
+    requester_token: str,
+    patient_id: str,
+    spec_id: str,
+) -> dict:
+    r = client.post(
+        "/api/reviews",
+        json={
+            "patient_id": patient_id,
+            "specialty_ids": [spec_id],
+            "user_ids": [other_id],
+            "message": "Please advise.",
+            "brief": {"specialties": [], "items": []},
+        },
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def test_response_image_attach_and_view(client: TestClient):
+    admin = admin_token(client)
+    requester_id, requester_token = _staff_and_token(client, admin, "img-requester@example.com")
+    specialist_id, specialist_token = _staff_and_token(
+        client, admin, "img-specialist@example.com", role="pharmacist"
+    )
+    spec = _specialty(client, admin, "Imaging Test Spec")
+    r = client.post(
+        f"/api/specialties/{spec['id']}/members",
+        json={"user_id": specialist_id},
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r.status_code == 200, r.text
+    patient = _patient(client, requester_token, "000021")
+    review = _open_review(client, specialist_id, requester_token, patient["id"], spec["id"])
+
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+    r = client.post(
+        f"/api/reviews/{review['id']}/responses",
+        data={"text": "Rash looks like this."},
+        files=[("image", ("rash.png", png, "image/png"))],
+        headers={"Authorization": f"Bearer {specialist_token}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["has_image"] is True
+    response_id = r.json()["id"]
+
+    r = client.get(
+        f"/api/reviews/responses/{response_id}/image",
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.content == png
+
+    r = client.post(
+        f"/api/reviews/{review['id']}/responses",
+        data={"text": "Not an image."},
+        files=[("image", ("note.txt", b"hello", "text/plain"))],
+        headers={"Authorization": f"Bearer {specialist_token}"},
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_open_reviews_for_patient(client: TestClient):
+    admin = admin_token(client)
+    requester_id, requester_token = _staff_and_token(client, admin, "fp-requester@example.com")
+    other_id, _ = _staff_and_token(client, admin, "fp-other@example.com")
+    spec = _specialty(client, admin, "Gate Test Spec")
+    patient = _patient(client, requester_token, "000022")
+
+    r = client.get(
+        f"/api/reviews/for-patient/{patient['id']}",
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json() == []
+
+    review = _open_review(client, other_id, requester_token, patient["id"], spec["id"])
+    r = client.get(
+        f"/api/reviews/for-patient/{patient['id']}",
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert r.status_code == 200, r.text
+    assert [x["id"] for x in r.json()] == [review["id"]]
+    assert r.json()[0]["status"] == "pending"
+
+    r = client.patch(
+        f"/api/reviews/{review['id']}",
+        json={"status": "closed"},
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert r.status_code == 200, r.text
+    r = client.get(
+        f"/api/reviews/for-patient/{patient['id']}",
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json() == []
+
+    r = client.get(
+        "/api/reviews/for-patient/00000000-0000-0000-0000-000000000000",
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert r.status_code == 404, r.text

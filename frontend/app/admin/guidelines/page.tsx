@@ -23,35 +23,23 @@ export default function AdminGuidelines() {
 
   useEffect(() => {
     if (!user || user.role !== 'admin' || !token) return;
-    let timer: ReturnType<typeof setInterval> | null = null;
-    const load = () => {
-      fetch(`${API_BASE}/api/mdt/guidelines`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((list) => {
-          if (!list) return;
-          const docs = list as ApiGuideline[];
-          setDocs(docs);
-          // A 1000+ page guideline indexes for minutes in the worker —
-          // keep polling only while something is still queued or indexing.
-          const pending = docs.some((d) =>
-            ['queued', 'indexing'].includes(d.index_status),
-          );
-          if (pending && !timer) {
-            timer = setInterval(load, 5000);
-          } else if (timer && !pending) {
-            clearInterval(timer);
-            timer = null;
-          }
-        })
-        .catch(() => {});
-    };
-    load();
-    return () => {
-      if (timer) clearInterval(timer);
-    };
+    refresh();
+    const timer = setInterval(refresh, 5000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, token]);
+
+  function refresh() {
+    if (!token) return;
+    fetch(`${API_BASE}/api/mdt/guidelines`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((list) => {
+        if (list) setDocs(list as ApiGuideline[]);
+      })
+      .catch(() => {});
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -99,6 +87,21 @@ export default function AdminGuidelines() {
       body: JSON.stringify({ active: !doc.active }),
     });
     if (!res.ok) return;
+    const updated = (await res.json()) as ApiGuideline;
+    setDocs((prev) => (prev ? prev.map((d) => (d.id === updated.id ? updated : d)) : prev));
+  }
+
+  async function retryIndex(doc: ApiGuideline) {
+    if (!token) return;
+    setError(null);
+    const res = await fetch(`${API_BASE}/api/mdt/guidelines/${doc.id}/reindex`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      setError(`Could not restart indexing (${res.status}).`);
+      return;
+    }
     const updated = (await res.json()) as ApiGuideline;
     setDocs((prev) => (prev ? prev.map((d) => (d.id === updated.id ? updated : d)) : prev));
   }
@@ -197,7 +200,7 @@ export default function AdminGuidelines() {
                     ? `${d.chunks} (${d.index_status === 'queued' ? 'queued' : 'indexing'}…)`
                     : d.chunks}
                 </td>
-                <td title={d.index_status === 'failed' ? d.index_error : undefined}>
+                <td>
                   {d.index_status === 'queued'
                     ? 'Queued'
                     : d.index_status === 'indexing'
@@ -207,8 +210,16 @@ export default function AdminGuidelines() {
                         : d.active
                           ? 'Active'
                           : 'Retired'}
+                  {d.index_status === 'failed' && d.index_error && (
+                    <p className="error">{d.index_error}</p>
+                  )}
                 </td>
                 <td>
+                  {d.index_status === 'failed' && (
+                    <button className="link-btn" type="button" onClick={() => retryIndex(d)}>
+                      Retry indexing
+                    </button>
+                  )}{' '}
                   <button className="link-btn" type="button" onClick={() => toggleActive(d)}>
                     {d.active ? 'Retire' : 'Reactivate'}
                   </button>

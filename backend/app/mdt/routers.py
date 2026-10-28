@@ -228,6 +228,29 @@ def update_guideline(
     return _guideline_read(db, doc)
 
 
+@router.post("/guidelines/{doc_id}/reindex", response_model=GuidelineRead)
+def reindex_guideline(
+    doc_id: str,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Re-run indexing for a guideline (e.g. after a failed attempt), without
+    re-uploading the file. Stale chunks are cleared by the task itself."""
+    if current.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    doc = db.get(GuidelineDoc, doc_id)
+    if doc is None or not doc.stored_path:
+        raise HTTPException(status_code=404, detail="Guideline not found")
+    if doc.index_status in ("queued", "indexing"):
+        raise HTTPException(status_code=409, detail="Indexing already in progress")
+    doc.index_status = "queued"
+    doc.index_error = ""
+    db.commit()
+    safe_delay(index_guideline, doc.id)
+    db.expire(doc)
+    return _guideline_read(db, doc)
+
+
 @router.get("/guidelines/{doc_id}/download")
 def download_guideline(
     doc_id: str,

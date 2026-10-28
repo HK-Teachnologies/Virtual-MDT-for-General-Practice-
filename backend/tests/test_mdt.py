@@ -252,6 +252,53 @@ def test_guideline_indexing_batches_embeddings(monkeypatch, client: TestClient):
     assert sum(calls) == doc["chunks"]
 
 
+def test_guideline_reindex_recovers_and_dedupes(client: TestClient):
+    from app.mdt.models import GuidelineChunk
+
+    admin = admin_token(client)
+    headers = {"Authorization": f"Bearer {admin}"}
+    body = "Reindex me. " * 200
+    r = client.post(
+        "/api/mdt/guidelines",
+        data={"title": "Reindex guide", "version": "2024"},
+        files={"file": ("reindex.txt", body.encode(), "text/plain")},
+        headers=headers,
+    )
+    assert r.status_code == 201, r.text
+    doc_id = r.json()["id"]
+    assert r.json()["index_status"] == "ready"
+    with SessionLocal() as db:
+        first = db.query(GuidelineChunk).filter(GuidelineChunk.doc_id == doc_id).count()
+        db.add(
+            GuidelineChunk(
+                doc_id=doc_id, chunk_index=9999, text="stale", embedding=[0.1] * 768
+            )
+        )
+        db.commit()
+    assert first >= 1
+
+    r = client.post(f"/api/mdt/guidelines/{doc_id}/reindex", headers=headers)
+    assert r.status_code == 200, r.text
+    assert r.json()["index_status"] == "ready"
+    with SessionLocal() as db:
+        rows = db.query(GuidelineChunk).filter(GuidelineChunk.doc_id == doc_id).all()
+    assert all(c.chunk_index != 9999 for c in rows)
+    assert len(rows) == first
+
+    # Non-admins cannot reindex; unknown docs 404.
+    staff = _staff_token(client, admin, "reindex-staff@example.com")
+    r = client.post(
+        f"/api/mdt/guidelines/{doc_id}/reindex",
+        headers={"Authorization": f"Bearer {staff}"},
+    )
+    assert r.status_code == 403, r.text
+    r = client.post(
+        "/api/mdt/guidelines/00000000-0000-0000-0000-000000000000/reindex",
+        headers=headers,
+    )
+    assert r.status_code == 404, r.text
+
+
 def test_retrieval_skips_half_indexed_guides(client: TestClient):
     from sqlalchemy import select
 

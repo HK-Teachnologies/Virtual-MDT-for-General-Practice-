@@ -1,5 +1,5 @@
 import { mockBrief } from './mock';
-import type { ApiPatient, ApiSection, ApiTranscription, ApiVisit, MdtBrief } from './types';
+import type { ApiPatient, ApiReview, ApiSection, ApiTranscription, ApiVisit, MdtBrief } from './types';
 
 // Base URL of the FastAPI backend (origin only: every path below adds /api).
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -109,6 +109,22 @@ export async function updateSection(
   });
   if (!res.ok) throw new Error(await readError(res));
   return (await res.json()) as ApiSection;
+}
+
+export async function getOpenReviews(token: string, patientId: string): Promise<ApiReview[]> {
+  const res = await fetch(`${API_BASE}/api/reviews/for-patient/${patientId}`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiReview[];
+}
+
+export async function deletePatient(token: string, patientId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/patients/${patientId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await readError(res));
 }
 
 export async function deleteSection(token: string, sectionId: string): Promise<void> {

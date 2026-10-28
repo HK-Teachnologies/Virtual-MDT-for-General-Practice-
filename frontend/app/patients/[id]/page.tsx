@@ -7,9 +7,9 @@ import CaptureForm from '../../../components/CaptureForm';
 import MdtBriefView from '../../../components/MdtBriefView';
 import ReviewSendDialog from '../../../components/ReviewSendDialog';
 import VisitCard from '../../../components/VisitCard';
-import { getBrief, getPatient } from '../../../lib/api';
+import { deletePatient, getBrief, getOpenReviews, getPatient } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
-import type { ApiPatient, ApiVisit, BriefItem, MdtBrief } from '../../../lib/types';
+import type { ApiPatient, ApiReview, ApiVisit, BriefItem, MdtBrief } from '../../../lib/types';
 
 export default function PatientRecord() {
   const params = useParams();
@@ -21,6 +21,10 @@ export default function PatientRecord() {
   const [loadingBrief, setLoadingBrief] = useState(false);
   const [missing, setMissing] = useState(false);
   const [sending, setSending] = useState<BriefItem[] | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [openReviews, setOpenReviews] = useState<ApiReview[] | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login');
@@ -35,13 +39,37 @@ export default function PatientRecord() {
       }
       setPatient(p);
     });
+    getOpenReviews(token, Array.isArray(id) ? id[0] : id)
+      .then(setOpenReviews)
+      .catch(() => setOpenReviews([]));
   }, [id, user, token]);
+
+  function refreshOpenReviews() {
+    if (!id || Array.isArray(id) || !token) return;
+    getOpenReviews(token, id)
+      .then(setOpenReviews)
+      .catch(() => {});
+  }
 
   async function prepareReview() {
     if (!id || Array.isArray(id)) return;
     setLoadingBrief(true);
     setBrief(await getBrief(id));
     setLoadingBrief(false);
+  }
+
+  async function removePatient() {
+    if (!patient || !token) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deletePatient(token, patient.id);
+      router.replace('/');
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'Could not delete this patient.');
+      setDeleting(false);
+      setConfirmingDelete(false);
+    }
   }
 
   if (authLoading || !user || !token) {
@@ -78,6 +106,39 @@ export default function PatientRecord() {
           .filter(Boolean)
           .join(' · ') || 'No contact details on record'}
       </p>
+      {user.role === 'admin' && (
+        <div className="row">
+          {!confirmingDelete ? (
+            <button className="btn" type="button" onClick={() => setConfirmingDelete(true)}>
+              Delete patient
+            </button>
+          ) : (
+            <>
+              <span>
+                Delete {patient.full_name} and every visit, file, brief, and review? This
+                cannot be undone.
+              </span>
+              <button
+                className="btn btn-danger"
+                type="button"
+                onClick={removePatient}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting…' : 'Yes, delete everything'}
+              </button>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                disabled={deleting}
+              >
+                Keep
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {deleteError && <p className="error">{deleteError}</p>}
 
       <section className="panel">
         <h2>Visit timeline</h2>
@@ -116,7 +177,31 @@ export default function PatientRecord() {
 
       <section className="panel">
         <h2>MDT review</h2>
-        {!brief ? (
+        {openReviews === null ? (
+          <p className="muted">Checking for open reviews…</p>
+        ) : openReviews.length > 0 ? (
+          <div>
+            {openReviews.map((r) => (
+              <div key={r.id} className="row review-card-head">
+                <span>
+                  <span className={`badge badge-${r.status}`}>
+                    {r.status === 'pending' ? 'Sent — waiting for review' : r.status}
+                  </span>{' '}
+                  {r.message || 'Review sent to specialists'}{' '}
+                  <span className="muted">
+                    ({r.response_count} response{r.response_count === 1 ? '' : 's'})
+                  </span>
+                </span>
+                <Link className="btn" href={`/reviews/${r.id}`}>
+                  Open review
+                </Link>
+              </div>
+            ))}
+            <p className="muted">
+              Close the open review before preparing a new one.
+            </p>
+          </div>
+        ) : !brief ? (
           <div>
             <p className="muted">
               The agent reviews the case and past visits, selects relevant specialties, and drafts
@@ -132,7 +217,10 @@ export default function PatientRecord() {
             brief={brief}
             items={sending}
             token={token}
-            onClose={() => setSending(null)}
+            onClose={() => {
+              setSending(null);
+              refreshOpenReviews();
+            }}
           />
         ) : (
           <MdtBriefView brief={brief} onSend={(items) => setSending(items)} />
