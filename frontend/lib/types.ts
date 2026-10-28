@@ -43,6 +43,26 @@ export interface MdtBrief {
   generatedAt: string;
 }
 
+export interface ApiBriefItem {
+  id: string;
+  specialty: string;
+  concern: string;
+  citation: string;
+  certainty: string;
+  status: string;
+  edited_text: string | null;
+}
+
+export interface ApiBriefRun {
+  id: string;
+  patient_id: string;
+  status: string;
+  current_step: string;
+  specialties: string[];
+  error: string;
+  items: ApiBriefItem[];
+}
+
 // Shapes returned by the FastAPI backend.
 export interface ApiAttachment {
   id: string;

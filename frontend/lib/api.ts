@@ -1,5 +1,4 @@
-import { mockBrief } from './mock';
-import type { ApiPatient, ApiReview, ApiSection, ApiTranscription, ApiVisit, MdtBrief } from './types';
+import type { ApiBriefRun, ApiPatient, ApiReview, ApiSection, ApiTranscription, ApiVisit } from './types';
 
 // Base URL of the FastAPI backend (origin only: every path below adds /api).
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -76,10 +75,43 @@ export async function addVisit(
   return (await res.json()) as ApiVisit;
 }
 
-// The MDT brief still comes from the mock agent until the backend builds it.
-export async function getBrief(patientId: string): Promise<MdtBrief> {
-  await new Promise((r) => setTimeout(r, 800)); // simulate the agent run
-  return mockBrief(patientId);
+export async function requestBriefRun(token: string, patientId: string): Promise<ApiBriefRun> {
+  const res = await fetch(`${API_BASE}/api/mdt/brief`, {
+    method: 'POST',
+    headers: authHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ patient_id: patientId }),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiBriefRun;
+}
+
+export async function getBriefRun(token: string, runId: string): Promise<ApiBriefRun> {
+  const res = await fetch(`${API_BASE}/api/mdt/runs/${runId}`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiBriefRun;
+}
+
+export async function listBriefRuns(token: string, patientId: string): Promise<ApiBriefRun[]> {
+  const res = await fetch(`${API_BASE}/api/mdt/patients/${patientId}/runs`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiBriefRun[];
+}
+
+export async function signOffBriefItem(
+  token: string,
+  itemId: string,
+  data: { status: string; edited_text?: string },
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/mdt/items/${itemId}`, {
+    method: 'PATCH',
+    headers: authHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await readError(res));
 }
 
 export async function addSection(

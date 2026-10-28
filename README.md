@@ -33,6 +33,36 @@ presenting with a two-week cough. The agent flags TB screening, a possible
 interaction to check if TB treatment starts, and an overdue kidney function test —
 each with citation and certainty level.
 
+## Specialist review workflow
+
+After the brief is ready, the case can be sent to specialists for input:
+
+1. **Prepare MDT review** — On the patient record, tap "Prepare MDT review".
+   The agent plans, retrieves guideline evidence, drafts, and self-checks in a
+   background job; the page polls until the brief lands. Reopening the record
+   resumes the latest finished brief, so sign-off survives a reload.
+2. **Sign off** — Approve, edit, or reject each point. Every change is saved
+   server-side and badged `AI-suggested` → `clinician-approved` / `edited` /
+   `rejected` (audit trail).
+3. **Send for specialist review** — Tap "Send for specialist review". The
+   specialties the brief is about come pre-ticked: everyone in a ticked
+   specialty is notified, anyone can be unticked, and specific people can be
+   hand-picked instead. Each recipient gets an email with a link that opens
+   the review directly once signed in.
+4. **Sent, not duplicated** — While a review is open (`pending`/`responded`),
+   the patient page shows "Sent — waiting for review" with a link, and no new
+   brief can be prepared. Close the review to start another round.
+5. **Respond** — Specialists open it from Reviews → Assigned to me and reply
+   in text, by voice recording (transcribed so it stays readable, and kept
+   listenable), or with a photo attached. The requester is emailed on each
+   response. Reviews the user sent live under Requested by me.
+6. **Close** — The requester (or an admin) closes the review when the loop is
+   complete. Reviews are never approved/rejected — they are responded to.
+
+Admins manage the routing under Admin → Specialties (e.g. HIV care,
+Cardiology, Pharmacy) and can delete a patient record in full (visits, files,
+vectors, briefs, reviews, login codes) from the record page.
+
 ## Tech stack
 
 | Layer    | Technology                                  |
@@ -112,9 +142,12 @@ Backend settings come from `deployment/docker-compose/.env` (see `.env.example`)
 ## Roadmap
 
 - [x] Concept note and demo scenario
-- [ ] Case capture (photo + dictation → structured record + timeline)
-- [ ] MDT agent (specialty selection, evidence retrieval, self-check)
-- [ ] Brief screen with approve / edit / reject flow
+- [x] Case capture (photo + dictation → structured record + timeline)
+- [x] MDT agent (specialty selection, evidence retrieval, self-check)
+- [x] Brief screen with approve / edit / reject flow (persisted server-side)
+- [x] Specialist reviews (specialty routing, email links, text/voice/photo
+      responses, pending → responded → closed, no-duplicate gate)
+- [x] Guideline library (PDF upload, async indexing with retry, RAG citations)
 - [ ] Referral letter generation (bonus)
 - [ ] Patient follow-up in Luganda / Swahili / English (future, not in hackathon build)
 

@@ -7,9 +7,53 @@ import CaptureForm from '../../../components/CaptureForm';
 import MdtBriefView from '../../../components/MdtBriefView';
 import ReviewSendDialog from '../../../components/ReviewSendDialog';
 import VisitCard from '../../../components/VisitCard';
-import { deletePatient, getBrief, getOpenReviews, getPatient } from '../../../lib/api';
+import {
+  deletePatient,
+  getBriefRun,
+  getOpenReviews,
+  getPatient,
+  listBriefRuns,
+  requestBriefRun,
+  signOffBriefItem,
+} from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
-import type { ApiPatient, ApiReview, ApiVisit, BriefItem, MdtBrief } from '../../../lib/types';
+import type {
+  ApiBriefItem,
+  ApiBriefRun,
+  ApiPatient,
+  ApiReview,
+  ApiVisit,
+  BriefItem,
+  Certainty,
+  ItemStatus,
+  MdtBrief,
+} from '../../../lib/types';
+
+function toCertainty(value: string): Certainty {
+  return value === 'high' || value === 'moderate' || value === 'low' ? value : 'low';
+}
+
+function toStatus(value: string): ItemStatus {
+  return value === 'approved' || value === 'rejected' || value === 'edited' ? value : 'suggested';
+}
+
+function runToBrief(patientId: string, run: ApiBriefRun): MdtBrief {
+  return {
+    patientId,
+    specialties: run.specialties,
+    items: run.items.map((i: ApiBriefItem) => ({
+      id: i.id,
+      specialty: i.specialty,
+      concern: i.status === 'edited' && i.edited_text ? i.edited_text : i.concern,
+      citation: i.citation,
+      certainty: toCertainty(i.certainty),
+      status: toStatus(i.status),
+    })),
+    interactions: [],
+    overdueChecks: [],
+    generatedAt: new Date().toISOString(),
+  };
+}
 
 export default function PatientRecord() {
   const params = useParams();
@@ -18,6 +62,9 @@ export default function PatientRecord() {
   const id = params.id;
   const [patient, setPatient] = useState<ApiPatient | null>(null);
   const [brief, setBrief] = useState<MdtBrief | null>(null);
+  const [briefRunId, setBriefRunId] = useState<string | null>(null);
+  const [briefStep, setBriefStep] = useState('');
+  const [briefError, setBriefError] = useState<string | null>(null);
   const [loadingBrief, setLoadingBrief] = useState(false);
   const [missing, setMissing] = useState(false);
   const [sending, setSending] = useState<BriefItem[] | null>(null);
@@ -42,6 +89,16 @@ export default function PatientRecord() {
     getOpenReviews(token, Array.isArray(id) ? id[0] : id)
       .then(setOpenReviews)
       .catch(() => setOpenReviews([]));
+    // Resume the latest finished brief so sign-off survives a reload.
+    listBriefRuns(token, Array.isArray(id) ? id[0] : id)
+      .then((runs) => {
+        const ready = runs.find((r) => r.status === 'ready');
+        if (ready) {
+          setBriefRunId(ready.id);
+          setBrief(runToBrief(Array.isArray(id) ? id[0] : (id as string), ready));
+        }
+      })
+      .catch(() => {});
   }, [id, user, token]);
 
   function refreshOpenReviews() {
@@ -51,11 +108,60 @@ export default function PatientRecord() {
       .catch(() => {});
   }
 
-  async function prepareReview() {
-    if (!id || Array.isArray(id)) return;
-    setLoadingBrief(true);
-    setBrief(await getBrief(id));
+  async function pollRun(runId: string, auth: string, pid: string) {
+    // The agent plans, retrieves, drafts, and self-checks in the worker —
+    // usually under a minute. Poll until it lands or fails.
+    for (let i = 0; i < 100; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      let run: ApiBriefRun;
+      try {
+        run = await getBriefRun(auth, runId);
+      } catch {
+        continue;
+      }
+      if (run.status === 'ready') {
+        setBriefRunId(run.id);
+        setBrief(runToBrief(pid, run));
+        setLoadingBrief(false);
+        return;
+      }
+      if (run.status === 'failed') {
+        setBriefError(run.error || 'The agent could not prepare a review.');
+        setLoadingBrief(false);
+        return;
+      }
+      setBriefStep(run.current_step || 'Working…');
+    }
+    setBriefError('The agent is taking too long — try again.');
     setLoadingBrief(false);
+  }
+
+  async function prepareReview() {
+    if (!id || Array.isArray(id) || !token) return;
+    setLoadingBrief(true);
+    setBriefError(null);
+    setBriefStep('Queued…');
+    setBrief(null);
+    setBriefRunId(null);
+    try {
+      const run = await requestBriefRun(token, id);
+      if (run.status === 'ready') {
+        setBriefRunId(run.id);
+        setBrief(runToBrief(id, run));
+        setLoadingBrief(false);
+        return;
+      }
+      setBriefStep(run.current_step || 'Queued…');
+      await pollRun(run.id, token, id);
+    } catch (e) {
+      setBriefError(e instanceof Error ? e.message : 'Could not prepare a review.');
+      setLoadingBrief(false);
+    }
+  }
+
+  async function persistSignOff(itemId: string, status: BriefItem['status'], editedText?: string) {
+    if (!token) throw new Error('Not signed in.');
+    await signOffBriefItem(token, itemId, { status, edited_text: editedText });
   }
 
   async function removePatient() {
@@ -207,8 +313,9 @@ export default function PatientRecord() {
               The agent reviews the case and past visits, selects relevant specialties, and drafts
               an evidence-cited brief for your sign-off.
             </p>
+            {briefError && <p className="error">{briefError}</p>}
             <button className="btn btn-primary" type="button" onClick={prepareReview} disabled={loadingBrief}>
-              {loadingBrief ? 'Preparing review…' : 'Prepare MDT review'}
+              {loadingBrief ? (briefStep || 'Preparing review…') : 'Prepare MDT review'}
             </button>
           </div>
         ) : sending ? (
@@ -223,7 +330,12 @@ export default function PatientRecord() {
             }}
           />
         ) : (
-          <MdtBriefView brief={brief} onSend={(items) => setSending(items)} />
+          <MdtBriefView
+            key={briefRunId ?? 'brief'}
+            brief={brief}
+            onSend={(items) => setSending(items)}
+            persistItem={persistSignOff}
+          />
         )}
       </section>
     </div>

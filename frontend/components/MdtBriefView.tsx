@@ -6,16 +6,32 @@ import type { BriefItem, MdtBrief } from '../lib/types';
 export default function MdtBriefView({
   brief,
   onSend,
+  persistItem,
 }: {
   brief: MdtBrief;
   onSend?: (items: BriefItem[]) => void;
+  persistItem?: (id: string, status: BriefItem['status'], editedText?: string) => Promise<void>;
 }) {
   const [items, setItems] = useState<BriefItem[]>(brief.items);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [copied, setCopied] = useState(false);
+  const [signOffError, setSignOffError] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
 
-  function setStatus(id: string, status: BriefItem['status']) {
+  async function setStatus(id: string, status: BriefItem['status']) {
+    setSignOffError(null);
+    if (persistItem) {
+      setSavingId(id);
+      try {
+        await persistItem(id, status);
+      } catch {
+        setSignOffError('Could not save that change — try again.');
+        setSavingId(null);
+        return;
+      }
+      setSavingId(null);
+    }
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
   }
 
@@ -24,10 +40,23 @@ export default function MdtBriefView({
     setDraft(item.concern);
   }
 
-  function saveEdit(id: string) {
+  async function saveEdit(id: string) {
     if (!draft.trim()) return;
+    const concern = draft.trim();
+    setSignOffError(null);
+    if (persistItem) {
+      setSavingId(id);
+      try {
+        await persistItem(id, 'edited', concern);
+      } catch {
+        setSignOffError('Could not save that change — try again.');
+        setSavingId(null);
+        return;
+      }
+      setSavingId(null);
+    }
     setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, concern: draft.trim(), status: 'edited' } : i)),
+      prev.map((i) => (i.id === id ? { ...i, concern, status: 'edited' } : i)),
     );
     setEditing(null);
   }
@@ -72,6 +101,7 @@ export default function MdtBriefView({
         )}
       </div>
 
+      {signOffError && <p className="error">{signOffError}</p>}
       {items.map((item) => (
         <article key={item.id} className={`brief-item status-${item.status}`}>
           <div className="brief-item-head">
@@ -83,8 +113,8 @@ export default function MdtBriefView({
             <div className="field">
               <textarea rows={4} value={draft} onChange={(e) => setDraft(e.target.value)} />
               <div className="row">
-                <button className="btn btn-primary" type="button" onClick={() => saveEdit(item.id)}>
-                  Save
+                <button className="btn btn-primary" type="button" onClick={() => saveEdit(item.id)} disabled={savingId === item.id}>
+                  {savingId === item.id ? 'Saving…' : 'Save'}
                 </button>
                 <button className="btn" type="button" onClick={() => setEditing(null)}>
                   Cancel
@@ -96,13 +126,13 @@ export default function MdtBriefView({
               <p>{item.concern}</p>
               <p className="citation">{item.citation}</p>
               <div className="row">
-                <button className="btn btn-primary" type="button" onClick={() => setStatus(item.id, 'approved')}>
-                  Approve
+                <button className="btn btn-primary" type="button" onClick={() => setStatus(item.id, 'approved')} disabled={savingId === item.id}>
+                  {savingId === item.id ? 'Saving…' : 'Approve'}
                 </button>
-                <button className="btn" type="button" onClick={() => startEdit(item)}>
+                <button className="btn" type="button" onClick={() => startEdit(item)} disabled={savingId === item.id}>
                   Edit
                 </button>
-                <button className="btn" type="button" onClick={() => setStatus(item.id, 'rejected')}>
+                <button className="btn" type="button" onClick={() => setStatus(item.id, 'rejected')} disabled={savingId === item.id}>
                   Reject
                 </button>
               </div>
