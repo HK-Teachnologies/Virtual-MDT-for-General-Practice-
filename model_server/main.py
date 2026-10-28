@@ -47,7 +47,7 @@ def health():
     return {
         "status": "ok",
         "embedding_model": EMBEDDING_MODEL_NAME,
-        "embedding_dim": embedder.get_sentence_embedding_dimension(),
+        "embedding_dim": (getattr(embedder, "get_embedding_dimension", None) or getattr(embedder, "get_sentence_embedding_dimension", None))(),
         "rerank_model": CROSS_ENCODER_MODEL,
     }
 

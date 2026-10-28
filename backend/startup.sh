@@ -16,8 +16,13 @@ while True:
     except OSError:
         time.sleep(1)
 "
-printf '%s\n' "Database is up - starting uvicorn"
+printf '%s\n' "Database is up - running migrations before seeding..."
+# Seeds below query tables, so migrations must run first. (The API also
+# migrates on startup; re-running here is a no-op.) Without this, a fresh
+# database fails seeding with 'relation "users" does not exist'.
+python -m alembic upgrade head
 printf '%s\n' "Seeding default admin (skips if unset or already exists)..."
 python add_admin.py
 python add_demodata.py
+printf '%s\n' "Starting uvicorn"
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000
