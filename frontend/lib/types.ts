@@ -77,6 +77,63 @@ export interface ApiGuideline {
   index_error: string;
 }
 
+export interface ApiSpecialtyMember {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: string;
+}
+
+export interface ApiSpecialty {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  member_count: number;
+  members: ApiSpecialtyMember[];
+}
+
+export interface ApiReviewRecipient {
+  id: string;
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  specialty_id: string | null;
+  specialty_name: string | null;
+  emailed: boolean;
+}
+
+export interface ApiReviewResponse {
+  id: string;
+  author_id: string;
+  author_email: string;
+  author_name: string | null;
+  text: string;
+  has_audio: boolean;
+  created_at: string;
+}
+
+export interface ApiReview {
+  id: string;
+  patient_id: string;
+  patient_name: string;
+  requested_by: string;
+  requester_email: string;
+  message: string;
+  brief_snapshot: {
+    specialties?: string[];
+    items?: BriefItem[];
+    interactions?: string[];
+    overdue_checks?: string[];
+  };
+  status: string;
+  created_at: string;
+  closed_at: string | null;
+  recipients: ApiReviewRecipient[];
+  responses: ApiReviewResponse[];
+  response_count: number;
+}
+
 export interface ApiSection {
   id: string;
   section: string;

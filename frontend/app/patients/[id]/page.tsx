@@ -5,10 +5,11 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import CaptureForm from '../../../components/CaptureForm';
 import MdtBriefView from '../../../components/MdtBriefView';
+import ReviewSendDialog from '../../../components/ReviewSendDialog';
 import VisitCard from '../../../components/VisitCard';
 import { getBrief, getPatient } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
-import type { ApiPatient, ApiVisit, MdtBrief } from '../../../lib/types';
+import type { ApiPatient, ApiVisit, BriefItem, MdtBrief } from '../../../lib/types';
 
 export default function PatientRecord() {
   const params = useParams();
@@ -19,6 +20,7 @@ export default function PatientRecord() {
   const [brief, setBrief] = useState<MdtBrief | null>(null);
   const [loadingBrief, setLoadingBrief] = useState(false);
   const [missing, setMissing] = useState(false);
+  const [sending, setSending] = useState<BriefItem[] | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login');
@@ -124,8 +126,16 @@ export default function PatientRecord() {
               {loadingBrief ? 'Preparing review…' : 'Prepare MDT review'}
             </button>
           </div>
+        ) : sending ? (
+          <ReviewSendDialog
+            patientId={patient.id}
+            brief={brief}
+            items={sending}
+            token={token}
+            onClose={() => setSending(null)}
+          />
         ) : (
-          <MdtBriefView brief={brief} />
+          <MdtBriefView brief={brief} onSend={(items) => setSending(items)} />
         )}
       </section>
     </div>

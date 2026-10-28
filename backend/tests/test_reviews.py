@@ -1,0 +1,169 @@
+from fastapi.testclient import TestClient
+
+from .conftest import admin_token
+
+
+def _staff(client: TestClient, admin: str, email: str, role: str = "doctor"):
+    r = client.post(
+        "/api/auth/register",
+        json={"email": email, "password": "staff12345", "full_name": email, "role": role},
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+def _patient(client: TestClient, token: str, tag: str) -> dict:
+    r = client.post(
+        "/api/patients",
+        json={"full_name": f"Review Patient {tag}", "phone": f"+256722{tag}"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def _specialty(client: TestClient, admin: str, name: str) -> dict:
+    r = client.post(
+        "/api/specialties",
+        json={"name": name},
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def test_specialty_crud_and_membership(client: TestClient):
+    admin = admin_token(client)
+    pharmacist = _staff(client, admin, "spec-pharm@example.com", role="pharmacist")
+
+    spec = _specialty(client, admin, "Pharmacy Test")
+    assert spec["member_count"] == 0
+
+    r = client.post(
+        f"/api/specialties/{spec['id']}/members",
+        json={"user_id": pharmacist},
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["member_count"] == 1
+    assert r.json()["members"][0]["email"] == "spec-pharm@example.com"
+
+    r = client.get(
+        "/api/specialties/mine",
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r.status_code == 200
+
+    r = client.post(
+        "/api/specialties",
+        json={"name": "Pharmacy Test"},
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_review_send_respond_close(client: TestClient):
+    admin = admin_token(client)
+    requester_id, requester_token = _staff_and_token(client, admin, "requester@example.com")
+    specialist_id, specialist_token = _staff_and_token(client, admin, "specialist@example.com", role="pharmacist")
+    outsider_id, outsider_token = _staff_and_token(client, admin, "outsider@example.com")
+
+    spec = _specialty(client, admin, "HIV care Test")
+    r = client.post(
+        f"/api/specialties/{spec['id']}/members",
+        json={"user_id": specialist_id},
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r.status_code == 200, r.text
+    patient = _patient(client, requester_token, "000011")
+
+    # Send: specialty members become recipients by default.
+    r = client.post(
+        "/api/reviews",
+        json={
+            "patient_id": patient["id"],
+            "specialty_ids": [spec["id"]],
+            "message": "Please advise on this case.",
+            "brief": {
+                "specialties": ["HIV"],
+                "items": [
+                    {
+                        "specialty": "HIV",
+                        "concern": "Check adherence.",
+                        "citation": "Visit notes",
+                        "certainty": "moderate",
+                        "status": "approved",
+                    }
+                ],
+            },
+        },
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert r.status_code == 201, r.text
+    review = r.json()
+    assert review["status"] == "pending"
+    assert [x["user_id"] for x in review["recipients"]] == [specialist_id]
+    assert review["recipients"][0]["specialty_name"] == "HIV care Test"
+
+    # Outsider cannot see it; specialist sees it in the inbox.
+    r = client.get(
+        f"/api/reviews/{review['id']}",
+        headers={"Authorization": f"Bearer {outsider_token}"},
+    )
+    assert r.status_code == 403, r.text
+    r = client.get(
+        "/api/reviews/inbox", headers={"Authorization": f"Bearer {specialist_token}"}
+    )
+    assert r.status_code == 200, r.text
+    assert [x["id"] for x in r.json()] == [review["id"]]
+    r = client.get(
+        "/api/reviews/requested", headers={"Authorization": f"Bearer {requester_token}"}
+    )
+    assert [x["response_count"] for x in r.json()] == [0]
+
+    # Specialist responds in text: review flips to responded.
+    r = client.post(
+        f"/api/reviews/{review['id']}/responses",
+        data={"text": "Adherence looks fine; continue ART."},
+        headers={"Authorization": f"Bearer {specialist_token}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["has_audio"] is False
+    r = client.get(
+        f"/api/reviews/{review['id']}",
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert r.json()["status"] == "responded"
+    assert r.json()["responses"][0]["text"].startswith("Adherence looks fine")
+
+    # Closed reviews reject new responses; only requester/admin closes.
+    r = client.patch(
+        f"/api/reviews/{review['id']}",
+        json={"status": "closed"},
+        headers={"Authorization": f"Bearer {specialist_token}"},
+    )
+    assert r.status_code == 403, r.text
+    r = client.patch(
+        f"/api/reviews/{review['id']}",
+        json={"status": "closed"},
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "closed"
+    r = client.post(
+        f"/api/reviews/{review['id']}/responses",
+        data={"text": "Too late."},
+        headers={"Authorization": f"Bearer {specialist_token}"},
+    )
+    assert r.status_code == 400, r.text
+
+
+def _staff_and_token(client: TestClient, admin: str, email: str, role: str = "doctor"):
+    _staff(client, admin, email, role)
+    r = client.post("/api/auth/login", data={"username": email, "password": "staff12345"})
+    assert r.status_code == 200, r.text
+    me = client.get(
+        "/api/auth/me", headers={"Authorization": f"Bearer {r.json()['access_token']}"}
+    ).json()
+    return me["id"], r.json()["access_token"]

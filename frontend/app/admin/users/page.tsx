@@ -28,6 +28,12 @@ export default function AdminUsers() {
   const [role, setRole] = useState<string>('doctor');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<User | null>(null);
+  const [editEmail, setEditEmail] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState('doctor');
+  const [editPassword, setEditPassword] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login');
@@ -81,6 +87,52 @@ export default function AdminUsers() {
       }
     } catch {
       setError('Could not reach the server.');
+    }
+    setBusy(false);
+  }
+
+  function startEdit(u: User) {
+    setEditing(u);
+    setEditEmail(u.email);
+    setEditName(u.full_name ?? '');
+    setEditRole(u.role);
+    setEditPassword('');
+    setEditError(null);
+  }
+
+  async function saveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!token || !editing) return;
+    setBusy(true);
+    setEditError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/users/${editing.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          email: editEmail.trim(),
+          full_name: editName.trim() || null,
+          role: editRole,
+          ...(editPassword ? { password: editPassword } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { detail?: unknown } | null;
+        setEditError(
+          body && typeof body.detail === 'string'
+            ? body.detail
+            : `Could not save (${res.status}).`,
+        );
+      } else {
+        const updated = (await res.json()) as User;
+        setUsers((prev) => (prev ? prev.map((u) => (u.id === updated.id ? updated : u)) : prev));
+        setEditing(null);
+      }
+    } catch {
+      setEditError('Could not reach the server.');
     }
     setBusy(false);
   }
@@ -167,6 +219,7 @@ export default function AdminUsers() {
                 <th>Email</th>
                 <th>Name</th>
                 <th>Role</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -177,12 +230,72 @@ export default function AdminUsers() {
                   <td>
                     <span className="badge">{u.role}</span>
                   </td>
+                  <td>
+                    <button className="link-btn" type="button" onClick={() => startEdit(u)}>
+                      Edit
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         </>
+      )}
+
+      {editing && (
+        <section className="panel">
+          <h2>Edit user</h2>
+          <form onSubmit={saveEdit}>
+            <div className="field">
+              <label htmlFor="editemail">Email</label>
+              <input
+                id="editemail"
+                type="email"
+                required
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="editname">Full name</label>
+              <input
+                id="editname"
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="editrole">Role</label>
+              <select id="editrole" value={editRole} onChange={(e) => setEditRole(e.target.value)}>
+                {ROLE_OPTIONS.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="editpassword">New password (blank keeps current)</label>
+              <input
+                id="editpassword"
+                type="password"
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+              />
+            </div>
+            {editError && <p className="error">{editError}</p>}
+            <div className="row">
+              <button className="btn btn-primary" type="submit" disabled={busy}>
+                {busy ? 'Saving…' : 'Save changes'}
+              </button>
+              <button className="btn" type="button" onClick={() => setEditing(null)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        </section>
       )}
     </div>
   );

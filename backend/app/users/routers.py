@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.security import create_access_token, decode_access_token, hash_password, verify_password
 from app.db.session import get_db
 from app.users.models import User
-from app.users.schemas import Token, UserCreate, UserRead
+from app.users.schemas import Token, UserCreate, UserRead, UserUpdate
 
 router = APIRouter()
 
@@ -81,3 +81,39 @@ def list_users(current: User = Depends(get_current_user), db: Session = Depends(
             status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
         )
     return db.scalars(select(User).order_by(User.email)).all()
+
+
+@router.patch("/users/{user_id}", response_model=UserRead)
+def update_user(
+    user_id: str,
+    data: UserUpdate,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    patch = data.model_dump(exclude_unset=True)
+    if not patch:
+        return user
+    if "email" in patch and patch["email"] != user.email:
+        if db.scalar(select(User).where(User.email == patch["email"])):
+            raise HTTPException(status_code=400, detail="Email already registered")
+        user.email = patch["email"]
+    if "full_name" in patch:
+        user.full_name = patch["full_name"]
+    if "role" in patch and patch["role"] is not None:
+        if user.id == current.id and patch["role"] != "admin":
+            raise HTTPException(
+                status_code=400, detail="You cannot remove your own admin role"
+            )
+        user.role = patch["role"]
+    if "password" in patch and patch["password"]:
+        user.hashed_password = hash_password(patch["password"])
+    db.commit()
+    db.refresh(user)
+    return user

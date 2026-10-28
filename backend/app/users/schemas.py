@@ -26,6 +26,22 @@ class UserRead(BaseModel):
     role: str
 
 
+class UserUpdate(BaseModel):
+    """Admin edits to a staff account. Password is optional (blank = keep)."""
+
+    email: EmailStr | None = None
+    full_name: str | None = None
+    role: str | None = None
+    password: str | None = None
+
+    @field_validator("role")
+    @classmethod
+    def _check_role(cls, value: str | None) -> str | None:
+        if value is not None and value not in USER_ROLES:
+            raise ValueError(f"role must be one of: {', '.join(sorted(USER_ROLES))}")
+        return value
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

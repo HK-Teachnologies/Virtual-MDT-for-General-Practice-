@@ -172,6 +172,49 @@ section.panel {
   white-space: nowrap;
 }
 
+.badge-pending {
+  background: #fff7e0;
+  border-color: #e3c964;
+}
+
+.badge-responded {
+  background: #e6f4ea;
+  border-color: #7bb98a;
+}
+
+.badge-closed {
+  background: var(--wash);
+  color: var(--muted);
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.review-card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  margin: 12px 0;
+}
+
+.review-card-head {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.response {
+  border-top: 1px solid var(--line);
+  padding: 8px 0;
+}
+
+.response audio {
+  max-width: 100%;
+}
+
 .field {
   margin: 12px 0;
   display: flex;
@@ -314,6 +357,12 @@ input[type="date"] {
   font-weight: 700;
   color: var(--muted);
   margin: 12px 6px 2px;
+}
+
+.side-note {
+  font-size: 0.8rem;
+  margin: 4px 0 0;
+  padding: 0 6px;
 }
 
 .side-label:first-child {

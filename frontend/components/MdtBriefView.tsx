@@ -3,7 +3,13 @@
 import { useState } from 'react';
 import type { BriefItem, MdtBrief } from '../lib/types';
 
-export default function MdtBriefView({ brief }: { brief: MdtBrief }) {
+export default function MdtBriefView({
+  brief,
+  onSend,
+}: {
+  brief: MdtBrief;
+  onSend?: (items: BriefItem[]) => void;
+}) {
   const [items, setItems] = useState<BriefItem[]>(brief.items);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -59,6 +65,11 @@ export default function MdtBriefView({ brief }: { brief: MdtBrief }) {
         <button className="btn" type="button" onClick={copyReferral}>
           {copied ? 'Referral summary copied' : 'Copy referral summary'}
         </button>
+        {onSend && (
+          <button className="btn btn-primary" type="button" onClick={() => onSend(items)}>
+            Send for specialist review
+          </button>
+        )}
       </div>
 
       {items.map((item) => (

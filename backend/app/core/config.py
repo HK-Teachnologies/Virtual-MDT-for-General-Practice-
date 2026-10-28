@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     celery_task_always_eager: bool = False
 
+    # Public origin of the web app, used for links inside notification emails.
+    frontend_url: str = "https://localhost"
+
     # LLM access goes through one OpenAI-compatible path (LiteLLM), so the
     # provider is swappable without touching MDT logic. META_API_KEY is kept
     # as a fallback because existing .env files already carry it.
