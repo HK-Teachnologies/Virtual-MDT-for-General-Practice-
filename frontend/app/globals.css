@@ -5,6 +5,12 @@
   --muted: #5b6560;
   --line: #dde4e1;
   --wash: #eef4f2;
+  --surface: #f2f6f5;
+  --card: #ffffff;
+  --card-shadow: 0 1px 2px rgba(16, 42, 38, 0.06), 0 4px 14px rgba(16, 42, 38, 0.06);
+  --sidebar: #0c3f37;
+  --sidebar-ink: #e9f2f0;
+  --sidebar-muted: #a9c4bd;
   --warn: #9a6a00;
   --danger: #b3372f;
   color-scheme: light;
@@ -18,8 +24,9 @@ body {
   margin: 0;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   color: var(--ink);
-  background: #fff;
+  background: var(--surface);
   line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
 }
 
 .container {
@@ -30,15 +37,38 @@ body {
 
 .site-header {
   border-bottom: 1px solid var(--line);
-  background: var(--wash);
-  padding: 14px 0;
+  background: var(--card);
+  box-shadow: 0 1px 3px rgba(16, 42, 38, 0.06);
+  padding: 12px 0;
   margin-bottom: 28px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 .brand {
-  font-weight: 700;
-  font-size: 1.25rem;
+  font-weight: 800;
+  font-size: 1.2rem;
   margin-right: 10px;
+  letter-spacing: -0.01em;
+  color: var(--accent-dark);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .muted {
@@ -54,13 +84,17 @@ body {
 }
 
 h1 {
-  font-size: 1.6rem;
-  margin: 0 0 8px;
+  font-size: 1.65rem;
+  margin: 0 0 6px;
+  letter-spacing: -0.015em;
+  font-weight: 800;
 }
 
 h2 {
-  font-size: 1.15rem;
-  margin: 0 0 4px;
+  font-size: 1.12rem;
+  margin: 0 0 6px;
+  letter-spacing: -0.005em;
+  font-weight: 750;
 }
 
 h3 {
@@ -82,10 +116,12 @@ a {
 .card {
   display: block;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 16px;
+  border-radius: 10px;
+  padding: 16px 18px;
   text-decoration: none;
   color: inherit;
+  background: var(--card);
+  box-shadow: var(--card-shadow);
 }
 
 .card:hover {
@@ -96,11 +132,14 @@ a {
   margin: 4px 0;
 }
 
-section.panel {
+section.panel,
+a.panel {
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 16px 20px;
+  border-radius: 12px;
+  padding: 18px 22px;
   margin: 20px 0;
+  background: var(--card);
+  box-shadow: var(--card-shadow);
 }
 
 .timeline {
@@ -132,9 +171,11 @@ section.panel {
 
 .visit-card {
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 12px;
   padding: 16px 20px;
   margin: 14px 0;
+  background: var(--card);
+  box-shadow: var(--card-shadow);
 }
 
 .visit-card h4 {
@@ -234,10 +275,18 @@ input[type="password"],
 input[type="text"],
 input[type="date"] {
   font: inherit;
-  padding: 8px 10px;
+  padding: 9px 12px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   width: 100%;
+  background: #fbfdfc;
+  color: var(--ink);
+}
+
+textarea:focus,
+select:focus,
+input:focus {
+  border-color: var(--accent);
 }
 
 .auth-form {
@@ -248,8 +297,10 @@ input[type="date"] {
   display: grid;
   grid-template-columns: minmax(300px, 400px) 1fr;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
+  background: var(--card);
+  box-shadow: var(--card-shadow);
 }
 
 .login-form {
@@ -342,27 +393,32 @@ input[type="date"] {
 }
 
 .sidebar {
-  width: 232px;
+  width: 236px;
   flex-shrink: 0;
-  background: var(--wash);
-  border-right: 1px solid var(--line);
-  padding: 20px 14px;
+  background: var(--sidebar);
+  color: var(--sidebar-ink);
+  padding: 22px 14px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .side-label {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  color: var(--muted);
-  margin: 12px 6px 2px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sidebar-muted);
+  margin: 14px 10px 4px;
 }
 
 .side-note {
   font-size: 0.8rem;
-  margin: 4px 0 0;
-  padding: 0 6px;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  color: var(--sidebar-muted);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
 }
 
 .side-label:first-child {
@@ -371,20 +427,20 @@ input[type="date"] {
 
 .side-link {
   display: block;
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: 9px 12px;
+  border-radius: 8px;
   text-decoration: none;
-  color: inherit;
+  color: var(--sidebar-ink);
+  font-weight: 600;
 }
 
 .side-link:hover {
-  background: #e2ebe9;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .side-link.active {
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
+  background: #fff;
+  color: var(--accent-dark);
 }
 
 .shell-main {
@@ -409,13 +465,26 @@ input[type="date"] {
   width: 100%;
   border-collapse: collapse;
   margin-top: 12px;
+  background: var(--card);
 }
 
 .data-table th,
 .data-table td {
   text-align: left;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--line);
+}
+
+.data-table th {
+  background: var(--wash);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
 }
 
 @media (max-width: 720px) {
@@ -450,13 +519,18 @@ textarea:focus {
 
 .btn {
   font: inherit;
-  font-weight: 600;
+  font-weight: 650;
   cursor: pointer;
-  border: 1px solid var(--accent-dark);
-  background: #fff;
+  border: 1px solid var(--line);
+  background: var(--card);
   color: var(--accent-dark);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 8px 16px;
+  box-shadow: 0 1px 2px rgba(16, 42, 38, 0.08);
+}
+
+.btn:hover {
+  border-color: var(--accent);
 }
 
 .btn-primary {
@@ -467,6 +541,18 @@ textarea:focus {
 
 .btn-primary:hover {
   background: var(--accent-dark);
+  border-color: var(--accent-dark);
+}
+
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  border-color: var(--danger);
+  filter: brightness(0.94);
 }
 
 .btn:disabled {
@@ -492,9 +578,11 @@ textarea:focus {
 .brief-item {
   border: 1px solid var(--line);
   border-top-width: 4px;
-  border-radius: 6px;
-  padding: 14px 16px;
+  border-radius: 10px;
+  padding: 14px 18px;
   margin: 14px 0;
+  background: var(--card);
+  box-shadow: var(--card-shadow);
 }
 
 .status-suggested {

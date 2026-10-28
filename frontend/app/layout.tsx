@@ -29,7 +29,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <header className="site-header">
                 <div className="container">
                   <span>
-                    <span className="brand">Virtual MDT</span>
+                    <span className="brand">
+                      <span className="brand-mark" aria-hidden="true">
+                        +
+                      </span>
+                      Virtual MDT
+                    </span>
                     <span className="muted brand-sub">for General Practice — demo</span>
                   </span>
                   <TopNav />
