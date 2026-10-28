@@ -1,10 +1,13 @@
-# Localhost entrypoint over HTTPS. Caddy provisions a locally-signed cert for
-# `localhost` automatically on first start (browsers will show a one-time
-# "not secure" warning until you click through it).
-localhost {
+# Site address comes from $DOMAIN, which compose sets from .env
+# (default: localhost for local dev).
+# A public domain gets automatic Let's Encrypt HTTPS. `localhost` gets a
+# locally-signed cert (browsers show a one-time "not secure" warning until
+# you click through it).
+{$DOMAIN} {
 	handle /api/* {
 		reverse_proxy backend:8000
 	}
+
 	handle {
 		reverse_proxy frontend:3000
 	}

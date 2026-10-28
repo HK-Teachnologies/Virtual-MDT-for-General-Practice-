@@ -8,6 +8,7 @@ COPY startup.sh ./
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY add_admin.py ./
+COPY add_demodata.py ./
 EXPOSE 8000
 # Run via `sh` so a lost exec bit (common from Windows checkouts) can't break boot.
 CMD ["sh", "./startup.sh"]

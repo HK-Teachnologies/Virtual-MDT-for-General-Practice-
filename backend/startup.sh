@@ -19,4 +19,5 @@ while True:
 printf '%s\n' "Database is up - starting uvicorn"
 printf '%s\n' "Seeding default admin (skips if unset or already exists)..."
 python add_admin.py
+python add_demodata.py
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000

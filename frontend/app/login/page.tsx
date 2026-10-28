@@ -31,8 +31,7 @@ export default function Login() {
       <form className="login-form" onSubmit={submit}>
         <h1>Sign in</h1>
         <p className="muted">
-          Use your Virtual MDT account. The demo admin account comes from the backend&apos;s
-          <code> ADMIN_EMAIL / ADMIN_PASSWORD</code>.
+          Use your Virtual MDT account.
         </p>
         <div className="field">
           <label htmlFor="email">Email</label>

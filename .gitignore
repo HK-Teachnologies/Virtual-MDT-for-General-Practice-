@@ -1,6 +1,7 @@
 # Secrets — never commit real keys
 .env
 *.env
+.env.*
 !.env.example
 
 # Python / FastAPI
