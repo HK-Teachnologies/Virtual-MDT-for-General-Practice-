@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -74,6 +74,7 @@ def create_patient(
         db.rollback()
         raise HTTPException(status_code=400, detail="Phone or email already registered")
     db.refresh(patient)
+    patient.visit_count = 0
     return patient
 
 
@@ -81,7 +82,17 @@ def create_patient(
 def list_patients(
     current: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    return db.scalars(select(Patient).order_by(Patient.created_at.desc())).all()
+    rows = db.execute(
+        select(Patient, func.count(Visit.id))
+        .outerjoin(Visit, Visit.patient_id == Patient.id)
+        .group_by(Patient.id)
+        .order_by(Patient.created_at.desc())
+    ).all()
+    patients = []
+    for patient, visit_count in rows:
+        patient.visit_count = visit_count
+        patients.append(patient)
+    return patients
 
 
 def load_patient_detail(db: Session, patient_id: str) -> Patient:
@@ -112,6 +123,7 @@ def load_patient_detail(db: Session, patient_id: str) -> Patient:
             ).all()
         )
     patient.visits = visits
+    patient.visit_count = len(visits)
     return patient
 
 

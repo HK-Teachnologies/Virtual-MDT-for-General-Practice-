@@ -105,4 +105,5 @@ export interface ApiPatient {
   address: string | null;
   created_at: string;
   visits: ApiVisit[];
+  visit_count: number;
 }

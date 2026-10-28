@@ -82,3 +82,5 @@ class PatientRead(BaseModel):
     address: str | None = None
     created_at: datetime
     visits: list[VisitRead] = []
+    # The list endpoint omits full visits; this carries the count instead.
+    visit_count: int = 0

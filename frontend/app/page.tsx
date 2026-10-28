@@ -153,7 +153,11 @@ export default function Home() {
               <p>{p.phone ?? 'No phone on record'}</p>
               <p>{p.email ?? 'No email on record'}</p>
               <p>{p.district ?? 'No district on record'}</p>
-              <p className="muted">{p.visits.length} visits on record</p>
+              <p className="muted">
+                {(p.visit_count ?? p.visits.length) === 1
+                  ? '1 visit on record'
+                  : `${p.visit_count ?? p.visits.length} visits on record`}
+              </p>
             </Link>
           ))}
         </div>
