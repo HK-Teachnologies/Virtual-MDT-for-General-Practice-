@@ -79,6 +79,12 @@ export default function PatientQuestions({
             <div key={q.id} className="brief-item">
               <p className="muted">{wording(q)}</p>
               <p>{q.answer_text}</p>
+              {q.answer_original && q.answer_original !== q.answer_text && (
+                <details>
+                  <summary>Show original</summary>
+                  <p className="muted">{q.answer_original}</p>
+                </details>
+              )}
             </div>
           ))}
         </details>

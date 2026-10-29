@@ -39,6 +39,7 @@ export interface ApiFollowUp {
   question: string;
   question_i18n?: { en: string; sw: string; lg: string };
   answer_text: string;
+  answer_original?: string;
   has_audio: boolean;
   status: string;
   created_at: string;

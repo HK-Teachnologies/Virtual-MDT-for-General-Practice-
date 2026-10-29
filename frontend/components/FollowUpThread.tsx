@@ -44,7 +44,17 @@ export default function FollowUpThread({ patientId, token }: { patientId: string
             <span className="badge">{q.status === 'open' ? 'Waiting for patient' : 'Answered'}</span>
           </div>
           <p>{q.question}</p>
-          {q.status !== 'open' && <p>{q.answer_text}</p>}
+          {q.status !== 'open' && (
+            <>
+              <p>{q.answer_text}</p>
+              {q.answer_original && q.answer_original !== q.answer_text && (
+                <details>
+                  <summary>Show original</summary>
+                  <p className="muted">{q.answer_original}</p>
+                </details>
+              )}
+            </>
+          )}
         </div>
       ))}
       <div className="field">

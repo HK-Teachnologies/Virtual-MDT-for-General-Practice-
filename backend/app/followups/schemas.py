@@ -16,6 +16,7 @@ class FollowUpRead(BaseModel):
     question: str
     question_i18n: dict = {}
     answer_text: str = ""
+    answer_original: str = ""
     has_audio: bool = False
     status: str
     created_at: datetime

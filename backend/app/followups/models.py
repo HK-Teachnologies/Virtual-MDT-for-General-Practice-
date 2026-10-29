@@ -22,6 +22,9 @@ class FollowUp(Base):
     )
     asked_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     question: Mapped[str] = mapped_column(Text, default="")
+    # Original-language transcript of a voice answer, kept so bilingual
+    # staff can check the English translation. Empty for typed answers.
+    answer_original: Mapped[str] = mapped_column(Text, default="")
     # Staff question translated at ask time ({en, sw, lg}) so patients
     # read follow-ups in their language. Empty until the worker fills it.
     question_i18n: Mapped[dict] = mapped_column(JSON, default=dict)

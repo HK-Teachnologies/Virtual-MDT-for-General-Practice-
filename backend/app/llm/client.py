@@ -144,21 +144,22 @@ def describe_image(path: str, mime: str, instruction: str) -> str:
     return resp.choices[0].message.content or ""
 
 
-def transcribe_to_english(path: str) -> str:
+def transcribe_to_english(path: str) -> tuple[str, str]:
     """Speech-to-text plus translation: Luganda/Swahili/English speech in,
-    plain English text out. Audio is transcription fuel only — callers must
-    not serve the file to users."""
+    (original transcript, plain English text) out. The original is kept so
+    bilingual staff can check the translation. Audio is transcription fuel
+    only — callers must not serve the file to users."""
     from app.llm.prompts import TRANSLATE_ENGLISH_SYSTEM
 
     if settings.llm_provider == "echo":
-        return "Echo transcription in English."
+        return ("Echo transcript.", "Echo transcription in English.")
     text = transcribe_audio(path).strip()
     if not text:
-        return ""
+        return ("", "")
     raw = complete_json(
         system=TRANSLATE_ENGLISH_SYSTEM, user=text, kind="translate_en"
     )
-    return str(raw.get("en", "")).strip()
+    return (text, str(raw.get("en", "")).strip())
 
 
 def transcribe_audio(path: str, language: str | None = None) -> str:

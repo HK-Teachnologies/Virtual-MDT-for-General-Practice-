@@ -38,6 +38,7 @@ def _read(followup: FollowUp, db: Session) -> FollowUpRead:
         question=followup.question,
         question_i18n=dict(followup.question_i18n or {}),
         answer_text=followup.answer_text or "",
+        answer_original=followup.answer_original or "",
         has_audio=bool(followup.answer_audio_path),
         status=followup.status,
         created_at=followup.created_at,
@@ -119,6 +120,7 @@ def answer_question(
     if followup is None or followup.patient_id != current.id:
         raise HTTPException(status_code=404, detail="Question not found")
     body = text.strip()
+    original = ""
     audio_received = False
     if audio is not None:
         raw = audio.file.read()
@@ -132,12 +134,13 @@ def answer_question(
             (voice_dir / stored).write_bytes(raw)
             if not body:
                 try:
-                    body = llm.transcribe_to_english(audio_path).strip()
+                    original, body = llm.transcribe_to_english(audio_path)
+                    original, body = original.strip(), body.strip()
                 except llm.LLMError as exc:
                     raise HTTPException(
                         status_code=502, detail=f"Voice transcription failed: {exc}"
                     )
-            # Transcription-only: free the disk, keep the text.
+            # Transcription-only: free the disk, keep both texts.
             Path(audio_path).unlink(missing_ok=True)
     if not body:
         raise HTTPException(
@@ -150,6 +153,7 @@ def answer_question(
             ),
         )
     followup.answer_text = body
+    followup.answer_original = original
     followup.answer_audio_path = None
     followup.status = "answered"
     followup.answered_at = datetime.now(timezone.utc)

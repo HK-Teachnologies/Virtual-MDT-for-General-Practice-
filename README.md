@@ -229,7 +229,8 @@ Backend settings come from `deployment/docker-compose/.env` (see `.env.example`)
   transcribed as-is; patient voice notes (English, Luganda, or Kiswahili) are
   transcribed to English text. The audio file is deleted once transcription
   succeeds and is never served to any user — text is what travels on slow
-  connections.
+  connections. The original-language transcript is kept next to the English
+  so bilingual staff can check the translation.
 - **Access control.** Staff sign in with passwords (admin-managed accounts);
   patients use a separate OTP login that sees only their own record. Review
   links require sign-in.

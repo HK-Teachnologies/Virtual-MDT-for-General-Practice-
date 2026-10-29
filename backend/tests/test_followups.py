@@ -91,7 +91,7 @@ def test_followup_voice_answer_transcribed_to_english_text_only(
     monkeypatch.setattr(
         llm_client,
         "transcribe_to_english",
-        lambda path: "The headache is gone",
+        lambda path: ("Omuzibu gumu", "The headache is gone"),
     )
     headers = _headers(client)
     patient_id, token = _patient_token(client, "446446", monkeypatch)
@@ -110,6 +110,7 @@ def test_followup_voice_answer_transcribed_to_english_text_only(
     )
     assert answered.status_code == 200, answered.text
     assert answered.json()["answer_text"] == "The headache is gone"
+    assert answered.json()["answer_original"] == "Omuzibu gumu"
     assert answered.json()["has_audio"] is False
 
     # No bytes on disk, no column reference, no endpoint.
