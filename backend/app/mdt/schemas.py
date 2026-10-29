@@ -15,6 +15,10 @@ class BriefItemRead(BaseModel):
     certainty: str
     status: str
     edited_text: str | None = None
+    source_type: str = ""
+    question: str = ""
+    urgent: bool = False
+    selfcheck_reason: str = ""
 
 
 class BriefRunRead(BaseModel):
@@ -31,6 +35,7 @@ class BriefRunRead(BaseModel):
     items: list[BriefItemRead] = []
     interactions: list[dict] = []
     overdue_checks: list[dict] = []
+    removed_points: list[dict] = []
 
 
 class BriefItemUpdate(BaseModel):

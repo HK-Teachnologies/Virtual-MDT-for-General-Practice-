@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { API_BASE } from '../../../lib/api';
+import { sourceLabel } from '../../../lib/sources';
 import { useAuth } from '../../../lib/auth';
 import type { ApiReview } from '../../../lib/types';
 
@@ -210,10 +211,22 @@ export default function ReviewDetail() {
           <h2>Brief snapshot</h2>
           {snapshotItems.map((item, i) => (
             <div key={i} className="brief-item">
-              <strong>{item.specialty}</strong>
+              <div className="brief-item-head">
+                <strong>{item.specialty}</strong>
+                {sourceLabel(item.source_type ?? '') && (
+                  <span className="badge">{sourceLabel(item.source_type ?? '')}</span>
+                )}
+                {item.urgent && <span className="badge badge-urgent">Urgent</span>}
+              </div>
               <p>{item.concern}</p>
+              {item.question && (
+                <p>
+                  <strong>Question: </strong>
+                  {item.question}
+                </p>
+              )}
               <p className="muted">
-                {item.certainty} · {item.citation} · {item.status}
+                {item.citation} · {item.status}
               </p>
             </div>
           ))}

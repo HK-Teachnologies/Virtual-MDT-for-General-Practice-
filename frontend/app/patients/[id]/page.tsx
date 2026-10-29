@@ -27,31 +27,58 @@ import type {
   Certainty,
   ItemStatus,
   MdtBrief,
+  RemovedPoint,
 } from '../../../lib/types';
-import { toInteraction, toOverdueCheck } from '../../../lib/sources';
+import { toInteraction, toOverdueCheck, toRemovedPanelPoint } from '../../../lib/sources';
 
 function toCertainty(value: string): Certainty {
   return value === 'high' || value === 'moderate' || value === 'low' ? value : 'low';
 }
 
 function toStatus(value: string): ItemStatus {
-  return value === 'approved' || value === 'rejected' || value === 'edited' ? value : 'suggested';
+  return value === 'approved' || value === 'rejected' || value === 'edited' || value === 'removed'
+    ? value
+    : 'suggested';
 }
 
 function runToBrief(patientId: string, run: ApiBriefRun): MdtBrief {
-  return {
-    patientId,
-    specialties: run.specialties,
-    items: run.items.map((i: ApiBriefItem) => ({
+  const removed: RemovedPoint[] = [];
+  const items: BriefItem[] = [];
+  for (const i of run.items) {
+    const status = toStatus(i.status);
+    const base = {
       id: i.id,
       specialty: i.specialty,
       concern: i.status === 'edited' && i.edited_text ? i.edited_text : i.concern,
       citation: i.citation,
       certainty: toCertainty(i.certainty),
-      status: toStatus(i.status),
-    })),
+      status,
+      source_type: i.source_type ?? '',
+      question: i.question ?? '',
+      urgent: i.urgent ?? false,
+      selfcheck_reason: i.selfcheck_reason ?? '',
+    };
+    if (status === 'removed') {
+      removed.push({
+        kind: 'item',
+        text: base.concern,
+        sub: [base.specialty, base.question].filter(Boolean).join(' · '),
+        reason: base.selfcheck_reason || 'removed by self-check',
+      });
+    } else {
+      items.push(base);
+    }
+  }
+  for (const r of run.removed_points ?? []) {
+    removed.push(toRemovedPanelPoint(r.kind ?? '', r.point, r.reason ?? 'removed by self-check'));
+  }
+  return {
+    patientId,
+    specialties: run.specialties,
+    items,
     interactions: (run.interactions ?? []).map(toInteraction),
     overdueChecks: (run.overdue_checks ?? []).map(toOverdueCheck),
+    removed,
     generatedAt: new Date().toISOString(),
   };
 }

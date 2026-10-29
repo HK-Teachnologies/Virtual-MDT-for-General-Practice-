@@ -56,7 +56,8 @@ _ECHO = {
              "citation": "Visit notes on file", "source_type": "patient_record"},
         ],
     },
-    "selfcheck": {"verdicts": [{"index": 0, "keep": True, "reason": "echo"}, {"index": 1, "keep": True, "reason": "echo"}]},
+    # No "selfcheck" fixture: point ids only exist at run time, so echo
+    # mode generates a keep verdict per id in code (see mdt/tasks.py).
 }
 
 

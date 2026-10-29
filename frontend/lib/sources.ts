@@ -1,4 +1,4 @@
-import type { BriefInteraction, BriefOverdueCheck } from './types';
+import type { BriefInteraction, BriefOverdueCheck, RemovedPoint } from './types';
 
 /** Clinician-facing label for a brief point's evidence source. Empty when unknown. */
 export function sourceLabel(sourceType: string | undefined | null): string {
@@ -34,6 +34,30 @@ export function toOverdueCheck(raw: unknown): BriefOverdueCheck {
     last_done: String(p.last_done ?? ''),
     citation: String(p.citation ?? ''),
     source_type: String(p.source_type ?? ''),
+  };
+}
+
+/** Build the audit-trail entry for one dropped safety-panel point. */
+export function toRemovedPanelPoint(
+  kind: string,
+  raw: unknown,
+  reason: string,
+): RemovedPoint {
+  if (kind === 'interaction') {
+    const x = toInteraction(raw);
+    return {
+      kind,
+      text: `${x.drugs.length > 0 ? `${x.drugs.join(' + ')}: ` : ''}${x.concern}`,
+      sub: x.citation,
+      reason,
+    };
+  }
+  const x = toOverdueCheck(raw);
+  return {
+    kind: 'overdue_check',
+    text: x.check,
+    sub: [x.last_done && `last done: ${x.last_done}`, x.citation].filter(Boolean).join(' · '),
+    reason,
   };
 }
 

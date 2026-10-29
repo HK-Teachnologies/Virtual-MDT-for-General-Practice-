@@ -89,13 +89,18 @@ export default function ReviewSendDialog({
           message: message.trim(),
           brief: {
             specialties: brief.specialties,
-            items: items.map((i) => ({
-              specialty: i.specialty,
-              concern: i.concern,
-              citation: i.citation,
-              certainty: i.certainty,
-              status: i.status,
-            })),
+            items: items
+              .filter((i) => i.status !== 'removed')
+              .map((i) => ({
+                specialty: i.specialty,
+                concern: i.concern,
+                citation: i.citation,
+                certainty: i.certainty,
+                status: i.status,
+                source_type: i.source_type,
+                question: i.question,
+                urgent: i.urgent,
+              })),
             interactions: brief.interactions.map(interactionLine),
             overdue_checks: brief.overdueChecks.map(overdueCheckLine),
           },

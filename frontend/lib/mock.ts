@@ -81,6 +81,10 @@ const DEMO_BRIEF: MdtBrief = {
       citation: 'Uganda National TB Guidelines (2023), intensified case finding in PLHIV',
       certainty: 'high',
       status: 'suggested',
+      source_type: 'guideline',
+      question: 'Does this patient need TB screening today?',
+      urgent: true,
+      selfcheck_reason: '',
     },
     {
       id: 'pharm-1',
@@ -90,6 +94,10 @@ const DEMO_BRIEF: MdtBrief = {
       citation: 'WHO consolidated HIV guidelines (2024), TB/HIV co-treatment',
       certainty: 'high',
       status: 'suggested',
+      source_type: 'guideline',
+      question: '',
+      urgent: false,
+      selfcheck_reason: '',
     },
     {
       id: 'endo-1',
@@ -99,6 +107,10 @@ const DEMO_BRIEF: MdtBrief = {
       citation: 'Uganda Clinical Guidelines (2023), diabetes management',
       certainty: 'moderate',
       status: 'suggested',
+      source_type: 'guideline',
+      question: '',
+      urgent: false,
+      selfcheck_reason: '',
     },
     {
       id: 'hiv-1',
@@ -108,6 +120,10 @@ const DEMO_BRIEF: MdtBrief = {
       citation: 'Uganda HIV treatment guidelines (2022)',
       certainty: 'high',
       status: 'suggested',
+      source_type: 'guideline',
+      question: '',
+      urgent: false,
+      selfcheck_reason: '',
     },
   ],
   interactions: [
@@ -132,6 +148,7 @@ const DEMO_BRIEF: MdtBrief = {
       source_type: 'guideline',
     },
   ],
+  removed: [],
 };
 
 export function mockBrief(patientId: string): MdtBrief {
@@ -149,6 +166,10 @@ export function mockBrief(patientId: string): MdtBrief {
         citation: 'Uganda Clinical Guidelines (2023)',
         certainty: 'moderate',
         status: 'suggested',
+        source_type: 'patient_record',
+        question: '',
+        urgent: false,
+        selfcheck_reason: '',
       },
       {
         id: 'pharm-1',
@@ -157,6 +178,10 @@ export function mockBrief(patientId: string): MdtBrief {
         citation: 'Uganda Clinical Guidelines (2023), rational prescribing',
         certainty: 'moderate',
         status: 'suggested',
+        source_type: 'clinical_reasoning',
+        question: 'Can you confirm the current medication list?',
+        urgent: false,
+        selfcheck_reason: '',
       },
     ],
     interactions: [],
@@ -168,5 +193,6 @@ export function mockBrief(patientId: string): MdtBrief {
         source_type: '',
       },
     ],
+    removed: [],
   };
 }

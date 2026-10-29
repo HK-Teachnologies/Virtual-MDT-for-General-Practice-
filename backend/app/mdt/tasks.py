@@ -5,6 +5,7 @@ as a single task with per-step status updates so the frontend can poll honest
 progress. In tests (CELERY_TASK_ALWAYS_EAGER=1) everything runs inline.
 """
 
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -349,6 +350,22 @@ def _normalize_overdue_check(raw: object) -> dict:
     }
 
 
+def _normalize_item(raw: object) -> dict:
+    """Coerce one draft item to the object shape the UI renders."""
+    point = raw if isinstance(raw, dict) else {}
+    urgent = point.get("urgent", False)
+    if isinstance(urgent, str):
+        urgent = urgent.strip().lower() in ("true", "yes", "1")
+    return {
+        "specialty": str(point.get("specialty", "")),
+        "concern": str(point.get("concern", "")),
+        "question": str(point.get("question", "")),
+        "citation": str(point.get("citation", "")),
+        "source_type": str(point.get("source_type", "")),
+        "urgent": bool(urgent),
+    }
+
+
 @celery_app.task(name="mdt.run_brief", bind=True)
 def run_brief(self, run_id: str) -> str:
     with SessionLocal() as db:
@@ -401,38 +418,114 @@ def run_brief(self, run_id: str) -> str:
             )
 
             _set_step(db, run, "checking", "Self-checking citations")
-            items = draft.get("items", [])
-            verdicts = []
-            if settings.llm_provider != "echo" and items:
-                check = llm.complete_json(
-                    system=SELFCHECK_SYSTEM,
-                    user=f"Items:\n{items}\n\nEvidence:\n{evidence}",
-                    kind="selfcheck",
+            raw_items = draft.get("items", [])
+            raw_interactions = draft.get("interactions", [])
+            raw_checks = draft.get("overdue_checks", [])
+            points: list[dict] = []
+            for index, raw in enumerate(raw_items if isinstance(raw_items, list) else []):
+                points.append(
+                    {"id": f"item-{index}", "kind": "item", "point": _normalize_item(raw)}
                 )
-                verdicts = check.get("verdicts", [])
-            keep = {v.get("index") for v in verdicts if v.get("keep")} if verdicts else set(range(len(items)))
-            for index, item in enumerate(items):
-                if index not in keep:
-                    continue
-                db.add(
-                    BriefItem(
-                        run_id=run.id,
-                        specialty=str(item.get("specialty", ""))[:255],
-                        concern=str(item.get("concern", "")),
-                        citation=str(item.get("citation", "")),
-                        certainty=str(item.get("certainty", "low"))[:32],
-                        status="suggested",
+            for index, raw in enumerate(
+                raw_interactions if isinstance(raw_interactions, list) else []
+            ):
+                points.append(
+                    {
+                        "id": f"int-{index}",
+                        "kind": "interaction",
+                        "point": _normalize_interaction(raw),
+                    }
+                )
+            for index, raw in enumerate(raw_checks if isinstance(raw_checks, list) else []):
+                points.append(
+                    {
+                        "id": f"due-{index}",
+                        "kind": "overdue_check",
+                        "point": _normalize_overdue_check(raw),
+                    }
+                )
+            check_user = json.dumps(
+                {"points": points, "evidence": evidence}, indent=2
+            )
+            if settings.llm_provider == "echo":
+                # Ids only exist at run time, so echo keeps every point here
+                # in code instead of using a fixed canned fixture.
+                verdicts = [
+                    {"id": p["id"], "keep": True, "reason": "echo"} for p in points
+                ]
+            else:
+                try:
+                    check = llm.complete_json(
+                        system=SELFCHECK_SYSTEM,
+                        user=check_user,
+                        kind="selfcheck",
                     )
+                except Exception as exc:
+                    run.status, run.current_step = "failed", "Failed"
+                    run.error = f"Self-check failed: {exc}"[:2000]
+                    db.commit()
+                    return "failed"
+                raw_verdicts = check.get("verdicts", [])
+                verdicts = raw_verdicts if isinstance(raw_verdicts, list) else []
+            by_id = {
+                str(v.get("id")): v for v in verdicts if isinstance(v, dict)
+            }
+            kept_interactions, kept_checks, removed_points = [], [], []
+            for entry in points:
+                verdict = by_id.get(entry["id"])
+                reason = (
+                    str(verdict.get("reason") or "no verdict returned")
+                    if isinstance(verdict, dict)
+                    else "no verdict returned"
                 )
+                kept = isinstance(verdict, dict) and bool(verdict.get("keep"))
+                if not kept:
+                    if entry["kind"] == "item":
+                        db.add(
+                            BriefItem(
+                                run_id=run.id,
+                                specialty=entry["point"]["specialty"][:255],
+                                concern=entry["point"]["concern"],
+                                citation=entry["point"]["citation"],
+                                certainty="",
+                                status="removed",
+                                source_type=entry["point"]["source_type"][:32],
+                                question=entry["point"]["question"],
+                                urgent=entry["point"]["urgent"],
+                                selfcheck_reason=reason,
+                            )
+                        )
+                    else:
+                        removed_points.append(
+                            {
+                                "kind": entry["kind"],
+                                "point": entry["point"],
+                                "reason": reason,
+                            }
+                        )
+                    continue
+                if entry["kind"] == "item":
+                    db.add(
+                        BriefItem(
+                            run_id=run.id,
+                            specialty=entry["point"]["specialty"][:255],
+                            concern=entry["point"]["concern"],
+                            citation=entry["point"]["citation"],
+                            certainty="",
+                            status="suggested",
+                            source_type=entry["point"]["source_type"][:32],
+                            question=entry["point"]["question"],
+                            urgent=entry["point"]["urgent"],
+                        )
+                    )
+                elif entry["kind"] == "interaction":
+                    kept_interactions.append(entry["point"])
+                else:
+                    kept_checks.append(entry["point"])
             run.specialties = [str(s) for s in draft.get("specialties", run.specialties or [])][:4]
-            interactions = draft.get("interactions", [])
-            overdue_checks = draft.get("overdue_checks", [])
-            run.interactions = [
-                _normalize_interaction(p) for p in (interactions if isinstance(interactions, list) else [])
-            ]
-            run.overdue_checks = [
-                _normalize_overdue_check(p) for p in (overdue_checks if isinstance(overdue_checks, list) else [])
-            ]
+            run.interactions = kept_interactions
+            run.overdue_checks = kept_checks
+            run.removed_points = removed_points
             db.commit()
 
             _set_step(db, run, "ready", "Ready for clinician review")

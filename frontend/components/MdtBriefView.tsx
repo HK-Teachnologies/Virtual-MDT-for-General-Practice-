@@ -68,7 +68,10 @@ export default function MdtBriefView({
       'VIRTUAL MDT BRIEF (clinician-reviewed)',
       `Specialties: ${brief.specialties.join(', ')}`,
       '',
-      ...approved.map((i) => `- [${i.specialty}] ${i.concern} (certainty: ${i.certainty}; ${i.citation})`),
+      ...approved.map((i) => {
+        const source = sourceLabel(i.source_type);
+        return `- [${i.specialty}] ${i.concern}${i.question ? ` Question: ${i.question}` : ''}${source ? ` (${source}; ${i.citation})` : ` (${i.citation})`}`;
+      }),
       '',
       'Flagged interactions:',
       ...brief.interactions.map(interactionLine),
@@ -108,7 +111,10 @@ export default function MdtBriefView({
           <div className="brief-item-head">
             <strong>{item.specialty}</strong>
             <span className="badge">{item.status === 'suggested' ? 'AI-suggested' : `clinician-${item.status}`}</span>
-            <span className="badge">certainty: {item.certainty}</span>
+            {sourceLabel(item.source_type) && (
+              <span className="badge">{sourceLabel(item.source_type)}</span>
+            )}
+            {item.urgent && <span className="badge badge-urgent">Urgent</span>}
           </div>
           {editing === item.id ? (
             <div className="field">
@@ -125,6 +131,12 @@ export default function MdtBriefView({
           ) : (
             <>
               <p>{item.concern}</p>
+              {item.question && (
+                <p>
+                  <strong>Question: </strong>
+                  {item.question}
+                </p>
+              )}
               <p className="citation">{item.citation}</p>
               <div className="row">
                 <button
@@ -173,6 +185,21 @@ export default function MdtBriefView({
           </ul>
         )}
       </section>
+
+      {brief.removed.length > 0 && (
+        <details className="removed-points">
+          <summary>Removed by self-check ({brief.removed.length})</summary>
+          <ul>
+            {brief.removed.map((r, n) => (
+              <li key={n}>
+                <span className="muted">[{r.kind}]</span> {r.text}
+                {r.sub && <p className="muted">{r.sub}</p>}
+                <p className="citation">Why removed: {r.reason}</p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       <section>
         <h3>Overdue checks</h3>

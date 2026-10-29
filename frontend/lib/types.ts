@@ -1,5 +1,5 @@
 export type Certainty = 'high' | 'moderate' | 'low';
-export type ItemStatus = 'suggested' | 'approved' | 'rejected' | 'edited';
+export type ItemStatus = 'suggested' | 'approved' | 'rejected' | 'edited' | 'removed';
 
 export interface User {
   id: string;
@@ -32,6 +32,17 @@ export interface BriefItem {
   citation: string;
   certainty: Certainty;
   status: ItemStatus;
+  source_type: string;
+  question: string;
+  urgent: boolean;
+  selfcheck_reason: string;
+}
+
+export interface RemovedPoint {
+  kind: string;
+  text: string;
+  sub: string;
+  reason: string;
 }
 
 export interface BriefInteraction {
@@ -54,6 +65,7 @@ export interface MdtBrief {
   items: BriefItem[];
   interactions: BriefInteraction[];
   overdueChecks: BriefOverdueCheck[];
+  removed: RemovedPoint[];
   generatedAt: string;
 }
 
@@ -65,6 +77,10 @@ export interface ApiBriefItem {
   certainty: string;
   status: string;
   edited_text: string | null;
+  source_type?: string;
+  question?: string;
+  urgent?: boolean;
+  selfcheck_reason?: string;
 }
 
 export interface ApiBriefInteraction {
@@ -91,6 +107,7 @@ export interface ApiBriefRun {
   items: ApiBriefItem[];
   interactions?: Array<ApiBriefInteraction | string>;
   overdue_checks?: Array<ApiBriefOverdueCheck | string>;
+  removed_points?: Array<{ kind?: string; point?: unknown; reason?: string }>;
 }
 
 // Shapes returned by the FastAPI backend.

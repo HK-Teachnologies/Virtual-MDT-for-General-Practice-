@@ -9,6 +9,10 @@ class BriefItemSnapshot(BaseModel):
     citation: str = ""
     certainty: str = "low"
     status: str = "suggested"
+    # Prompt-v2 display metadata (optional so old snapshots keep working).
+    source_type: str = ""
+    question: str = ""
+    urgent: bool = False
 
 
 class BriefSnapshot(BaseModel):

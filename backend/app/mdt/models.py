@@ -39,7 +39,9 @@ RUN_STATUSES = frozenset(
 )
 
 # Mirrors the frontend ItemStatus so sign-off persists server-side.
-ITEM_STATUSES = frozenset({"suggested", "approved", "rejected", "edited"})
+# "removed" marks points the self-check dropped: kept as an audit trail,
+# never shown as suggestions and never sign-offable.
+ITEM_STATUSES = frozenset({"suggested", "approved", "rejected", "edited", "removed"})
 
 
 class BriefRun(Base):
@@ -58,6 +60,8 @@ class BriefRun(Base):
     # checks, as structured points (shapes in the draft prompt).
     interactions: Mapped[list] = mapped_column(JSON, default=list)
     overdue_checks: Mapped[list] = mapped_column(JSON, default=list)
+    # Dropped safety-panel points: [{kind, point, reason}].
+    removed_points: Mapped[list] = mapped_column(JSON, default=list)
     error: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(
@@ -81,6 +85,13 @@ class BriefItem(Base):
     certainty: Mapped[str] = mapped_column(String(32), default="low")
     status: Mapped[str] = mapped_column(String(32), default="suggested")
     edited_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # New draft shape (prompt v2): evidence source, question for the
+    # doctor, urgency flag, and why the self-check removed this point.
+    # `certainty` is legacy: kept for old rows, no longer written.
+    source_type: Mapped[str] = mapped_column(String(32), default="")
+    question: Mapped[str] = mapped_column(Text, default="")
+    urgent: Mapped[bool] = mapped_column(default=False)
+    selfcheck_reason: Mapped[str] = mapped_column(Text, default="")
 
 
 class Transcription(Base):

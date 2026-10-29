@@ -228,6 +228,12 @@ a.panel {
   color: var(--muted);
 }
 
+.badge-urgent {
+  background: #fdecea;
+  border-color: #d98a80;
+  color: #8f2f26;
+}
+
 .tabs {
   display: flex;
   gap: 8px;

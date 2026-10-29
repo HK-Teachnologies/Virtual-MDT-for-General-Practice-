@@ -114,6 +114,148 @@ def test_brief_saves_interactions_and_overdue_checks(client: TestClient):
     assert len(r.json()["overdue_checks"]) >= 1
 
 
+def _selfcheck_setup(monkeypatch, draft: dict, verdicts: list[dict] | None):
+    """Run the brief chain with a canned model: fixed embeddings plus
+    scripted plan/draft/selfcheck replies. Captures the self-check input."""
+    from app.core.config import settings
+    from app.mdt import tasks
+
+    captured: dict = {}
+    monkeypatch.setattr(settings, "llm_provider", "litellm")
+    monkeypatch.setattr(tasks.llm, "embed", lambda texts: [[0.1] * 768 for _ in texts])
+
+    def fake_complete_json(*, system: str, user: str, kind: str, **kwargs):
+        if kind == "plan":
+            return {"specialties": ["HIV care"], "queries": ["q"], "reasoning": "t"}
+        if kind == "draft":
+            return draft
+        if kind == "selfcheck":
+            captured["user"] = user
+            if verdicts is None:
+                raise RuntimeError("model blew up")
+            return {"verdicts": verdicts}
+        raise AssertionError(f"unexpected kind {kind}")
+
+    monkeypatch.setattr(tasks.llm, "complete_json", fake_complete_json)
+    return captured
+
+
+def _selfcheck_draft() -> dict:
+    item = lambda concern: {
+        "specialty": "HIV care",
+        "concern": concern,
+        "question": f"Q: {concern}",
+        "citation": "Visit notes on file",
+        "source_type": "patient_record",
+        "urgent": False,
+    }
+    return {
+        "specialties": ["HIV care"],
+        "items": [item("Keep me"), item("Drop me (no verdict)"), item("Drop me (explicit)")],
+        "interactions": [
+            {
+                "drugs": ["Drug A", "Drug B"],
+                "concern": "Drop this interaction",
+                "citation": "Visit notes on file",
+                "source_type": "patient_record",
+            }
+        ],
+        "overdue_checks": [
+            {
+                "check": "Keep this check",
+                "last_done": "not on record",
+                "citation": "Visit notes on file",
+                "source_type": "patient_record",
+            }
+        ],
+    }
+
+
+def test_selfcheck_matches_string_ids_and_drops_silent_points(monkeypatch, client: TestClient):
+    """String verdict ids match; a point with no verdict is dropped with a
+    reason; dropped items persist as removed and cannot be approved."""
+    import json
+
+    captured = _selfcheck_setup(
+        monkeypatch,
+        _selfcheck_draft(),
+        [
+            {"id": "item-0", "keep": True, "reason": "supported by the visit notes"},
+            {"id": "item-2", "keep": False, "reason": "unsupported citation"},
+            {"id": "due-0", "keep": True, "reason": "due per record"},
+        ],
+    )
+    token = admin_token(client)
+    patient = _patient(client, token, "000006")
+    _visit(client, token, patient["id"])
+    r = client.post(
+        "/api/mdt/brief",
+        json={"patient_id": patient["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 202, r.text
+    run = r.json()
+    assert run["status"] == "ready", run
+
+    # The self-check saw JSON points with string ids, not a Python repr.
+    payload = json.loads(captured["user"])
+    assert [p["id"] for p in payload["points"]] == [
+        "item-0",
+        "item-1",
+        "item-2",
+        "int-0",
+        "due-0",
+    ]
+    assert "evidence" in payload
+
+    by_concern = {i["concern"]: i for i in run["items"]}
+    assert by_concern["Keep me"]["status"] == "suggested"
+    assert by_concern["Keep me"]["question"] == "Q: Keep me"
+    assert by_concern["Keep me"]["source_type"] == "patient_record"
+    assert by_concern["Drop me (explicit)"]["status"] == "removed"
+    assert by_concern["Drop me (explicit)"]["selfcheck_reason"] == "unsupported citation"
+    assert by_concern["Drop me (no verdict)"]["status"] == "removed"
+    assert by_concern["Drop me (no verdict)"]["selfcheck_reason"] == "no verdict returned"
+
+    # The dropped interaction lands in the audit list, not the panels.
+    assert run["interactions"] == []
+    assert [rp["kind"] for rp in run["removed_points"]] == ["interaction"]
+    assert run["removed_points"][0]["reason"] == "no verdict returned"
+    assert len(run["overdue_checks"]) == 1
+
+    headers = {"Authorization": f"Bearer {token}"}
+    r = client.patch(
+        f"/api/mdt/items/{by_concern['Drop me (explicit)']['id']}",
+        json={"status": "approved"},
+        headers=headers,
+    )
+    assert r.status_code == 400, r.text
+    r = client.patch(
+        f"/api/mdt/items/{by_concern['Keep me']['id']}",
+        json={"status": "approved"},
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+
+
+def test_selfcheck_failure_fails_run(monkeypatch, client: TestClient):
+    """If the self-check call itself blows up, the run fails loudly
+    instead of keeping unchecked points."""
+    _selfcheck_setup(monkeypatch, _selfcheck_draft(), None)
+    token = admin_token(client)
+    patient = _patient(client, token, "000007")
+    _visit(client, token, patient["id"])
+    r = client.post(
+        "/api/mdt/brief",
+        json={"patient_id": patient["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 202, r.text
+    run = r.json()
+    assert run["status"] == "failed", run
+    assert "Self-check failed" in run["error"]
+
+
 def test_brief_chunks_indexed(client: TestClient):
     token = admin_token(client)
     patient = _patient(client, token, "000002")

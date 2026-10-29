@@ -61,9 +61,14 @@ def _run_read(db: Session, run: BriefRun) -> BriefRunRead:
                 certainty=i.certainty,
                 status=i.status,
                 edited_text=i.edited_text,
+                source_type=i.source_type or "",
+                question=i.question or "",
+                urgent=bool(i.urgent),
+                selfcheck_reason=i.selfcheck_reason or "",
             )
             for i in items
         ],
+        removed_points=list(run.removed_points or []),
     )
 
 
@@ -127,7 +132,12 @@ def sign_off_item(
     item = db.get(BriefItem, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Brief item not found")
-    if data.status not in ITEM_STATUSES:
+    if item.status == "removed":
+        raise HTTPException(
+            status_code=400,
+            detail="This point was removed by the self-check and cannot be signed off",
+        )
+    if data.status not in ITEM_STATUSES or data.status == "removed":
         raise HTTPException(
             status_code=400,
             detail=f"status must be one of: {', '.join(sorted(ITEM_STATUSES))}",
@@ -144,6 +154,10 @@ def sign_off_item(
         certainty=item.certainty,
         status=item.status,
         edited_text=item.edited_text,
+        source_type=item.source_type or "",
+        question=item.question or "",
+        urgent=bool(item.urgent),
+        selfcheck_reason=item.selfcheck_reason or "",
     )
 
 
