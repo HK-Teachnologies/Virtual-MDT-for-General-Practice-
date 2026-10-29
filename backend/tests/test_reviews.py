@@ -49,6 +49,21 @@ def test_specialty_crud_and_membership(client: TestClient):
     assert r.json()["member_count"] == 1
     assert r.json()["members"][0]["email"] == "spec-pharm@example.com"
 
+    # The table count and the manage-view list must agree: same join, same rows.
+    r = client.get(
+        "/api/specialties",
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r.status_code == 200, r.text
+    listed = [s for s in r.json() if s["id"] == spec["id"]][0]
+    r = client.get(
+        f"/api/specialties/{spec['id']}",
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["member_count"] == listed["member_count"] == 1
+    assert [m["email"] for m in r.json()["members"]] == ["spec-pharm@example.com"]
+
     r = client.get(
         "/api/specialties/mine",
         headers={"Authorization": f"Bearer {admin}"},

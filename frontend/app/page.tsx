@@ -20,6 +20,7 @@ export default function Home() {
   const [dob, setDob] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login');
@@ -68,8 +69,20 @@ export default function Home() {
       </p>
 
       <section className="panel">
-        <h2>Register patient</h2>
-        <form onSubmit={submit}>
+        <div className="row review-card-head">
+          <h2>Register patient</h2>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => setShowForm((v) => !v)}
+            aria-expanded={showForm}
+            aria-controls="register-form"
+          >
+            {showForm ? 'Hide' : 'Register a new patient'}
+          </button>
+        </div>
+        {showForm && (
+        <form id="register-form" onSubmit={submit}>
           <div className="field">
             <label htmlFor="fullName">Full name</label>
             <input
@@ -139,6 +152,7 @@ export default function Home() {
             {busy ? 'Registering…' : 'Register patient'}
           </button>
         </form>
+        )}
       </section>
 
       {!patients ? (

@@ -28,10 +28,13 @@ def _read(db: Session, specialty: Specialty, with_members: bool) -> SpecialtyRea
         ).all()
         members = [UserRef.model_validate(u) for u in users]
     else:
+        # Count through the same join the member list uses: a membership row
+        # without a matching user must never inflate the displayed count.
         count = (
             db.scalar(
                 select(func.count())
-                .select_from(SpecialtyMember)
+                .select_from(User)
+                .join(SpecialtyMember, SpecialtyMember.user_id == User.id)
                 .where(SpecialtyMember.specialty_id == specialty.id)
             )
             or 0

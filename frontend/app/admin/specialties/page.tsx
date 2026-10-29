@@ -40,6 +40,14 @@ export default function AdminSpecialties() {
       .catch(() => {});
   }, [user, token]);
 
+  function openManaging(spec: ApiSpecialty) {
+    // The table rows carry no member list — fetch the detail so the panel
+    // never shows a stale "Nobody assigned yet".
+    setManaging(spec);
+    setAddUserId('');
+    refreshManaging(spec.id);
+  }
+
   function refreshManaging(id: string) {
     if (!token) return;
     fetch(`${API_BASE}/api/specialties/${id}`, {
@@ -51,7 +59,7 @@ export default function AdminSpecialties() {
         const updated = doc as ApiSpecialty;
         setManaging(updated);
         setSpecialties((prev) =>
-          prev ? prev.map((s) => (s.id === updated.id ? { ...updated, members: s.members } : s)) : prev,
+          prev ? prev.map((s) => (s.id === updated.id ? updated : s)) : prev,
         );
       })
       .catch(() => {});
@@ -197,7 +205,7 @@ export default function AdminSpecialties() {
                   <td>{s.member_count}</td>
                   <td>{s.active ? 'Active' : 'Retired'}</td>
                   <td>
-                    <button className="link-btn" type="button" onClick={() => setManaging(s)}>
+                    <button className="link-btn" type="button" onClick={() => openManaging(s)}>
                       Manage people
                     </button>{' '}
                     <button className="link-btn" type="button" onClick={() => toggleActive(s)}>
