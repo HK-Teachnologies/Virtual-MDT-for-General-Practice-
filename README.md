@@ -25,8 +25,10 @@ Hackathon (26 Oct – 4 Nov 2026).
 - Specialist reviews: specialty routing, email links, text/voice/photo responses,
   pending → responded → closed, no-duplicate gate.
 - Guideline library: PDF upload, page-aware indexing, verified page citations.
-- Patient portal (OTP login), clinics master, admin user/specialty management,
-  mobile drawer navigation, in-app user guide, demo data seeding.
+- Patient portal (OTP login) with release-gated AI visit summaries
+  (English/Kiswahili/Luganda) and doctor–patient follow-up Q&A, clinics
+  master, admin user/specialty management, mobile drawer navigation, in-app
+  user guide, demo data seeding.
 
 ![MDT brief for Demo Patient A: sourced points, safety panels, and the self-check audit](docs/brief-hero.png)
 
@@ -75,7 +77,7 @@ After the brief is ready, the case can be sent to specialists for input:
    hand-picked instead. Each recipient gets an email with a link that opens
    the review directly once signed in.
 4. **Sent, not duplicated** — While a review is open (`pending`/`responded`),
-   the patient page shows "Sent — waiting for review" with a link, and no new
+   the patient page shows "Sent - waiting for review" with a link, and no new
    brief can be prepared. Close the review to start another round.
 5. **Respond** — Specialists open it from Reviews → Assigned to me and reply
    in text, by voice recording (transcribed so it stays readable, and kept
@@ -108,6 +110,9 @@ every summary starts as `draft` and the portal serves `released` ones:
 4. **Portal** — Patients sign in with a one-time code and see only released
    text. Anything still in draft shows `Your doctor is preparing your
    summary.` Reading the portal never generates or publishes anything.
+   Visits recorded before the gate existed are queued with
+   `docker compose exec backend python backfill_visit_summaries.py` —
+   they land as drafts for review, never published directly.
 
 ## Tech stack
 

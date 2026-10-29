@@ -24,8 +24,9 @@ export default function Guide() {
       <Step n="1" title="Register a patient">
         <p>
           Open <strong>Patients</strong> and tap <strong>Register a new patient</strong>. Fill
-          in at least the full name; phone or email is needed if the patient should sign
-          in to the portal later. Sex, district, area of residence, and date of birth help
+          in at least the full name; an email address is needed if the patient should sign
+          in to the portal later — one-time codes are emailed, so a phone number alone
+          cannot sign in yet. Sex, district, area of residence, and date of birth help
           the AI brief. Open the patient card to start their record.
         </p>
       </Step>
@@ -54,9 +55,10 @@ export default function Guide() {
         </ul>
         <p>
           After saving, every machine read (transcription or extracted text) appears under
-          the visit with a <strong>Verify</strong> action — confirm or correct it so the
-          record stays trustworthy. Use <strong>+ Add lab / imaging / note</strong> on any
-          visit card to append standard sections later.
+          the visit with <strong>Mark verified</strong> / <strong>Correct text</strong>
+          actions — confirm or correct it so the record stays trustworthy. Use
+          <strong>+ Add lab / imaging / note</strong> on any visit card to append
+          standard sections later.
         </p>
       </Step>
 
@@ -82,7 +84,7 @@ export default function Guide() {
           Tap <strong>Send for specialist review</strong>. Specialties from the brief come
           pre-ticked: everyone in a ticked specialty is emailed a link; untick anyone to
           exclude them, or pick specific people instead. While a review is open the record
-          shows <strong>Sent — waiting for review</strong> and no new brief can be
+          shows <strong>Sent - waiting for review</strong> and no new brief can be
           prepared.
         </p>
       </Step>
@@ -124,9 +126,10 @@ export default function Guide() {
 
       <Step n="8" title="Patient portal">
         <p>
-          Patients sign in separately at <strong>Patient sign in</strong> with their email
-          or phone number plus a one-time code. The portal is read-only: they can view
-          their record but not change it.
+          Patients sign in separately at <strong>Patient sign in</strong> with the email
+          address or phone number on their record, plus the one-time code emailed to
+          them (the record must have an email address for this to work). The portal
+          is read-only: they can view their record but not change it.
         </p>
         <p>
           Each visit automatically gets a draft plain-language summary in English,
