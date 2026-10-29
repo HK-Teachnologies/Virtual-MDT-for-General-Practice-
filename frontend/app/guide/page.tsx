@@ -172,7 +172,7 @@ export default function Guide() {
           Doctors can also send follow-up questions from the patient record,
           which the patient answers by text or voice note in the portal. Questions
           are translated automatically: the patient reads and answers in English,
-          Kiswahili, or Luganda.
+          Kiswahili, or Luganda, and answers arrive back as English text.
         </p>
       </Step>
 
