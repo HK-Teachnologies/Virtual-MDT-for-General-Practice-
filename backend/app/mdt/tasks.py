@@ -19,7 +19,12 @@ logger = logging.getLogger(__name__)
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.llm import client as llm
-from app.llm.prompts import DRAFT_SYSTEM, PLAN_SYSTEM, SELFCHECK_SYSTEM
+from app.llm.prompts import (
+    DRAFT_SYSTEM,
+    PATIENT_SUMMARY_SYSTEM,
+    PLAN_SYSTEM,
+    SELFCHECK_SYSTEM,
+)
 
 # Register every table in metadata. The web app gets this via main.py, but
 # the worker boots straight into this module — without these imports the
@@ -685,6 +690,7 @@ def run_brief(self, run_id: str) -> str:
                 str(v.get("id")): v for v in verdicts if isinstance(v, dict)
             }
             kept_interactions, kept_checks, removed_points = [], [], []
+            saved_items = []
             for entry in points:
                 verdict = by_id.get(entry["id"])
                 reason = (
@@ -744,6 +750,7 @@ def run_brief(self, run_id: str) -> str:
                             cited_labels=entry["cited"],
                         )
                     )
+                    saved_items.append(entry)
                 elif entry["kind"] == "interaction":
                     entry["point"]["cited_labels"] = entry["cited"]
                     kept_interactions.append(entry["point"])
@@ -757,6 +764,79 @@ def run_brief(self, run_id: str) -> str:
             run.interactions = kept_interactions
             run.overdue_checks = kept_checks
             run.removed_points = removed_points
+            db.commit()
+
+            _set_step(db, run, "summarizing", "Writing the patient summary")
+            # Only items that survived both the verdict and the citation
+            # check reach the patient summary.
+            agreed = [
+                {
+                    "specialty": entry["point"]["specialty"],
+                    "concern": entry["point"]["concern"],
+                    "question": entry["point"]["question"],
+                    "urgent": entry["point"]["urgent"],
+                }
+                for entry in saved_items
+            ]
+            from app.patients.models import Visit as _Visit
+
+            _visits = (
+                db.scalars(
+                    select(_Visit)
+                    .where(_Visit.patient_id == run.patient_id)
+                    .order_by(_Visit.visit_date)
+                ).all()
+            )
+            visit_blurbs = [
+                {
+                    "date": str(v.visit_date),
+                    "notes": redact_pii((v.notes or "")[:500], _identifiers),
+                }
+                for v in _visits
+            ]
+            if settings.llm_provider == "echo":
+                summary = {
+                    "en": "Echo patient summary.",
+                    "sw": "Muhtasari wa mgonjwa wa echo.",
+                    "lg": "Echo okusumulula kwomulwadde.",
+                    "visits": [
+                        {
+                            "date": b["date"],
+                            "en": "Echo visit summary.",
+                            "sw": "Muhtasari wa echo wa ziara.",
+                            "lg": "Echo okusumulula kwa IPS.",
+                        }
+                        for b in visit_blurbs
+                    ],
+                }
+            else:
+                try:
+                    summary = llm.complete_json(
+                        system=PATIENT_SUMMARY_SYSTEM,
+                        user=json.dumps(
+                            {"agreed_points": agreed, "visits": visit_blurbs}, indent=2
+                        ),
+                        kind="summary",
+                    )
+                except Exception as exc:
+                    logger.warning("Patient summary failed, continuing: %s", exc)
+                    summary = {}
+            raw_visits = summary.get("visits", [])
+            run.patient_summary = {
+                "en": str(summary.get("en", "")),
+                "sw": str(summary.get("sw", "")),
+                "lg": str(summary.get("lg", "")),
+                "visits": [
+                    {
+                        "date": str(v.get("date", "")),
+                        "en": str(v.get("en", "")),
+                        "sw": str(v.get("sw", "")),
+                        "lg": str(v.get("lg", "")),
+                    }
+                    for v in (raw_visits if isinstance(raw_visits, list) else [])
+                    if isinstance(v, dict)
+                ],
+            }
             db.commit()
 
             _set_step(db, run, "ready", "Ready for clinician review")

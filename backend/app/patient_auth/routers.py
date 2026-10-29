@@ -8,6 +8,7 @@ from email.message import EmailMessage
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -163,3 +164,32 @@ def read_own_record(
     current: Patient = Depends(get_current_patient), db: Session = Depends(get_db)
 ):
     return load_patient_detail(db, current.id)
+
+
+class MySummary(BaseModel):
+    run_id: str | None = None
+    completed_at: datetime | None = None
+    summary: dict = {}
+
+
+@router.get("/my-summary", response_model=MySummary)
+def read_own_summary(
+    current: Patient = Depends(get_current_patient), db: Session = Depends(get_db)
+):
+    """Latest ready brief's patient-safe summary for the portal."""
+    from app.mdt.models import BriefRun
+
+    run = (
+        db.scalars(
+            select(BriefRun)
+            .where(BriefRun.patient_id == current.id, BriefRun.status == "ready")
+            .order_by(BriefRun.created_at.desc())
+        ).first()
+    )
+    if run is None:
+        return MySummary()
+    return MySummary(
+        run_id=run.id,
+        completed_at=run.completed_at,
+        summary=dict(run.patient_summary or {}),
+    )

@@ -16,6 +16,8 @@ from app.reviews import models as review_models  # noqa: F401 — register for c
 from app.reviews import routers as review_routers
 from app.specialties import models as specialty_models  # noqa: F401 — register for create_all
 from app.specialties import routers as specialty_routers
+from app.followups import models as followup_models  # noqa: F401 — register for create_all
+from app.followups import routers as followup_routers
 from app.patient_auth import models as otp_models  # noqa: F401 — register for create_all
 from app.patient_auth import routers as patient_auth_routers
 from app.patients import routers as patient_routers
@@ -52,3 +54,4 @@ app.include_router(clinic_routers.router, prefix="/api/clinics", tags=["clinics"
 app.include_router(mdt_routers.router, prefix="/api/mdt", tags=["mdt"])
 app.include_router(review_routers.router, prefix="/api/reviews", tags=["reviews"])
 app.include_router(specialty_routers.router, prefix="/api/specialties", tags=["specialties"])
+app.include_router(followup_routers.router, prefix="/api/followups", tags=["followups"])

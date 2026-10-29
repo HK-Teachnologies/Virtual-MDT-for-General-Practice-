@@ -25,6 +25,7 @@ from app.patients.schemas import (
 )
 from app.mdt.models import BriefItem, BriefRun, PatientChunk, Transcription
 from app.mdt.tasks import embed_patient_chunks, safe_delay, transcribe_attachment
+from app.followups.models import FollowUp
 from app.patient_auth.models import OtpCode
 from app.reviews.models import Review, ReviewRecipient, ReviewResponse
 from app.users.models import User
@@ -248,6 +249,11 @@ def delete_patient(
         db.execute(delete(Review).where(Review.id.in_(review_ids)))
 
     db.execute(delete(OtpCode).where(OtpCode.patient_id == patient_id))
+    followup_audio = db.scalars(
+        select(FollowUp).where(FollowUp.patient_id == patient_id)
+    ).all()
+    file_paths.extend(f.answer_audio_path for f in followup_audio if f.answer_audio_path)
+    db.execute(delete(FollowUp).where(FollowUp.patient_id == patient_id))
     db.delete(patient)
     db.commit()
 

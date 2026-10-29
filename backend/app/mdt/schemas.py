@@ -29,6 +29,7 @@ class BriefRunRead(BaseModel):
     current_step: str
     model: str
     prompt_version: str
+    patient_summary: dict = {}
     specialties: list[str] = []
     error: str = ""
     created_at: datetime

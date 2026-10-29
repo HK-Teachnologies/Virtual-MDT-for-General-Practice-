@@ -62,6 +62,9 @@ class BriefRun(Base):
     overdue_checks: Mapped[list] = mapped_column(JSON, default=list)
     # Dropped safety-panel points: [{kind, point, reason}].
     removed_points: Mapped[list] = mapped_column(JSON, default=list)
+    # Patient-safe summary of the visit ({en, sw, lg}), written for the
+    # patient portal. Never the raw brief: plain words, no doses.
+    patient_summary: Mapped[dict] = mapped_column(JSON, default=dict)
     error: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(
