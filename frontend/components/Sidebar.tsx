@@ -24,6 +24,23 @@ export default function Sidebar() {
       .catch(() => {});
   }, [user, token]);
 
+  function close() {
+    document.body.classList.remove('nav-open');
+  }
+
+  // The drawer closes itself after navigating (mobile) or on Escape.
+  useEffect(() => {
+    close();
+  }, [pathname]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') close();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // No sidebar for signed-out visitors: the login page needs no navigation.
   if (!user) return null;
 
@@ -38,7 +55,9 @@ export default function Sidebar() {
   );
 
   return (
-    <aside className="sidebar">
+    <>
+      <div className="nav-backdrop" onClick={close} aria-hidden="true" />
+      <aside className="sidebar">
       <p className="side-label">Workspace</p>
       {link('/', 'Patients')}
       {link('/reviews', 'Reviews')}
@@ -59,6 +78,7 @@ export default function Sidebar() {
           {link('/admin/specialties', 'Specialties')}
         </>
       )}
-    </aside>
+      </aside>
+    </>
   );
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import MenuButton from '../components/MenuButton';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { AuthProvider } from '../lib/auth';
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <div className="shell-main">
               <header className="site-header">
                 <div className="container">
+                  <MenuButton />
                   <span>
                     <span className="brand">
                       <span className="brand-mark" aria-hidden="true">

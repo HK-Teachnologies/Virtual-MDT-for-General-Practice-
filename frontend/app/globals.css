@@ -271,8 +271,13 @@ a.panel {
   gap: 6px;
 }
 
-.field label {
+.field label,
+.field-label {
   font-weight: 600;
+}
+
+.capture-actions {
+  margin: 2px 0 8px;
 }
 
 textarea,
@@ -395,6 +400,33 @@ input:focus {
   white-space: nowrap;
 }
 
+/* Hamburger: only the phone layout needs it — the desktop sidebar is fixed. */
+.menu-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 11px;
+  cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.menu-btn span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent-dark);
+}
+
+.nav-backdrop {
+  display: none;
+}
+
 .shell {
   display: flex;
   min-height: 100vh;
@@ -496,21 +528,44 @@ input:focus {
 }
 
 @media (max-width: 720px) {
-  .shell {
-    flex-direction: column;
+  .menu-btn {
+    display: inline-flex;
   }
 
+  /* The sidebar becomes a slide-in drawer above a dimmed page. */
   .sidebar {
-    width: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    border-right: none;
-    border-bottom: 1px solid var(--line);
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(300px, 84vw);
+    z-index: 60;
+    border-right: 1px solid var(--line);
+    box-shadow: 8px 0 24px rgba(16, 42, 38, 0.18);
+    transform: translateX(-105%);
+    transition: transform 0.2s ease-out;
+    overflow-y: auto;
   }
 
-  .side-label {
-    margin: 0 4px;
+  body.nav-open .sidebar {
+    transform: none;
+  }
+
+  body.nav-open .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(16, 42, 38, 0.45);
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
   }
 }
 

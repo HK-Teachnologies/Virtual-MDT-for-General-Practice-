@@ -126,14 +126,24 @@ export default function MdtBriefView({
               <p>{item.concern}</p>
               <p className="citation">{item.citation}</p>
               <div className="row">
-                <button className="btn btn-primary" type="button" onClick={() => setStatus(item.id, 'approved')} disabled={savingId === item.id}>
-                  {savingId === item.id ? 'Saving…' : 'Approve'}
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  onClick={() => setStatus(item.id, 'approved')}
+                  disabled={savingId === item.id || item.status === 'approved'}
+                >
+                  {savingId === item.id ? 'Saving…' : item.status === 'approved' ? 'Approved' : 'Approve'}
                 </button>
                 <button className="btn" type="button" onClick={() => startEdit(item)} disabled={savingId === item.id}>
                   Edit
                 </button>
-                <button className="btn" type="button" onClick={() => setStatus(item.id, 'rejected')} disabled={savingId === item.id}>
-                  Reject
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => setStatus(item.id, 'rejected')}
+                  disabled={savingId === item.id || item.status === 'rejected'}
+                >
+                  {item.status === 'rejected' ? 'Rejected' : 'Reject'}
                 </button>
               </div>
             </>
