@@ -1,5 +1,7 @@
 # Virtual MDT for General Practice
 
+Live deployment: https://virtualmdt.hk-technologies.net
+
 A virtual multidisciplinary team (MDT) for general practice: a medical officer at a
 district hospital or Health Centre IV photographs or dictates a complex case, and an
 AI agent prepares a structured, evidence-cited MDT brief — per-specialty concerns,
@@ -13,6 +15,20 @@ which the clinician reviews, edits, and approves.
 
 Built for the **Build for Your World** track of the Meta Global AI Developer
 Hackathon (26 Oct – 4 Nov 2026).
+
+## Built during the hackathon (26 Oct – 4 Nov 2026)
+
+- Case capture: photo / dictation / upload / typed notes with AI transcription.
+- MDT agent: specialty planning, patient + guideline RAG, draft, self-check audit.
+- Brief screen with persisted approve / edit / reject sign-off and safety panels
+  (flagged interactions, overdue checks, removed-by-self-check audit).
+- Specialist reviews: specialty routing, email links, text/voice/photo responses,
+  pending → responded → closed, no-duplicate gate.
+- Guideline library: PDF upload, page-aware indexing, verified page citations.
+- Patient portal (OTP login), clinics master, admin user/specialty management,
+  mobile drawer navigation, in-app user guide, demo data seeding.
+
+![MDT brief for Demo Patient A: sourced points, safety panels, and the self-check audit](docs/brief-hero.png)
 
 ## How it works
 
@@ -31,19 +47,28 @@ Hackathon (26 Oct – 4 Nov 2026).
 Demo scenario: a 52-year-old on ART for HIV, with hypertension and diabetes,
 presenting with a two-week cough. The agent flags TB screening, a possible
 interaction to check if TB treatment starts, and an overdue kidney function test —
-each with citation and certainty level.
+each with an evidence-source badge (MoH guideline / patient record / clinical
+reasoning) and a guideline citation that names the exact page and opens it.
 
 ## Specialist review workflow
 
 After the brief is ready, the case can be sent to specialists for input:
 
 1. **Prepare MDT review** — On the patient record, tap "Prepare MDT review".
-   The agent plans, retrieves guideline evidence, drafts, and self-checks in a
-   background job; the page polls until the brief lands. Reopening the record
-   resumes the latest finished brief, so sign-off survives a reload.
+   The agent plans (choosing only from the specialties configured under
+   Admin → Specialties, so the brief's specialties match review routing),
+   retrieves patient history plus guideline evidence (wide vector net re-ranked
+   by the cross-encoder), drafts, and self-checks in a background job; the page
+   polls until the brief lands. Reopening the record resumes the latest finished
+   brief, so sign-off survives a reload.
 2. **Sign off** — Approve, edit, or reject each point. Every change is saved
    server-side and badged `AI-suggested` → `clinician-approved` / `edited` /
-   `rejected` (audit trail).
+   `rejected` (audit trail). Points carry the specialty's question for the
+   doctor, an `Urgent` flag when same-day action is needed, and a footer naming
+   the model and prompt (`Prepared by Muse Spark 1.3 · prompt v2`). Points the
+   self-check dropped are kept visible under a collapsed
+   `Removed by self-check (n)` audit list with the reason for each — they can
+   never be signed off or sent to specialists.
 3. **Send for specialist review** — Tap "Send for specialist review". The
    specialties the brief is about come pre-ticked: everyone in a ticked
    specialty is notified, anyone can be unticked, and specific people can be
@@ -97,8 +122,20 @@ the verified one. After one brief runs cleanly on the open model, confirm here.
 frontend/                  Next.js app
 backend/                   FastAPI app
 deployment/docker-compose/ docker-compose.yaml, Caddyfile, .env (local only, never committed)
-Virtual MDT for General Practice - Concept Note.docx  Original concept note
+model_server/              local embedding + rerank server (sentence-transformers)
+docs/demo-cases.md         synthetic hero demo case (Patient A)
 ```
+
+## Clinical guidelines
+
+Guideline PDFs are uploaded by an admin (Admin → Guidelines) and are **not**
+shipped in this repo. Editions used for the demo and acceptance run:
+
+- Uganda Clinical Guidelines 2023, Ministry of Health (test upload during
+  development; re-upload the licensed copy on each deployment).
+
+Guidelines uploaded before page-aware indexing need one **Reindex** (Admin →
+Guidelines → Reindex) so brief citations carry verified page numbers.
 
 ## Getting started
 
