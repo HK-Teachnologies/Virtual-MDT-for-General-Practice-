@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { API_BASE } from '../lib/api';
-import { interactionLine, overdueCheckLine, sourceLabel } from '../lib/sources';
+import { interactionLine, modelLine, overdueCheckLine, sourceLabel } from '../lib/sources';
 import type { BriefItem, CitedLabel, MdtBrief } from '../lib/types';
 
 function CiteChips({ cites, token }: { cites: CitedLabel[]; token: string | null }) {
@@ -268,6 +268,8 @@ export default function MdtBriefView({
           </ul>
         )}
       </section>
+
+      <p className="muted">{modelLine(brief.model, brief.prompt_version)}</p>
     </div>
   );
 }

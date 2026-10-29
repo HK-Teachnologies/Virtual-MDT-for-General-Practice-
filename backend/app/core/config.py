@@ -29,10 +29,10 @@ class Settings(BaseSettings):
     llm_provider: str = "echo"  # echo | litellm
     llm_api_key: str = ""
     meta_api_key: str = ""
-    llm_api_base: str = ""  # e.g. a self-hosted LiteLLM proxy URL
-    llm_model: str = "gpt-4o-mini"
+    llm_api_base: str = "https://api.meta.ai/v1"
+    llm_model: str = "openai/muse-spark-1.3"
     llm_vision_model: str = ""  # falls back to llm_model (must be multimodal)
-    llm_transcribe_model: str = "whisper-1"
+    llm_transcribe_model: str = "muse-voice-transcribe-1.0"
     llm_embed_model: str = "text-embedding-3-small"
     # Must match the model server's embedding model (bge-base-en-v1.5 = 768).
     llm_embed_dim: int = 768
@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # calls it over HTTP so no patient text leaves the deployment; chat and
     # transcription still go through LiteLLM. Empty = use LiteLLM/echo.
     model_server_url: str = ""
-    prompt_version: str = "v1"
+    prompt_version: str = "v2"
 
 
 settings = Settings()

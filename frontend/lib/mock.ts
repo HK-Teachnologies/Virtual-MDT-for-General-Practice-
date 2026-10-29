@@ -156,6 +156,8 @@ const DEMO_BRIEF: MdtBrief = {
     },
   ],
   removed: [],
+  model: 'openai/muse-spark-1.3',
+  prompt_version: 'v2',
 };
 
 export function mockBrief(patientId: string): MdtBrief {
@@ -204,5 +206,7 @@ export function mockBrief(patientId: string): MdtBrief {
       },
     ],
     removed: [],
+    model: 'openai/muse-spark-1.3',
+    prompt_version: 'v2',
   };
 }

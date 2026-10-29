@@ -73,6 +73,24 @@ vectors, briefs, reviews, login codes) from the record page.
 | AI       | Meta Model API: Muse Spark (multimodal + agent), Muse Voice Transcribe; self-hosted Muse Spark Open option |
 | Deploy   | Docker Compose + Caddy                      |
 
+## Running on Muse Spark Open
+
+The default agent model is Meta's hosted Muse Spark (`LLM_MODEL=openai/muse-spark-1.3`
+via `LLM_API_BASE=https://api.meta.ai/v1`). To run the open-weight sibling instead,
+point LiteLLM at an OpenAI-compatible endpoint serving `meta-models/muse-spark-open-1026`
+(Baseten or Modal), keeping everything else identical:
+
+```env
+LLM_PROVIDER=litellm
+LLM_API_BASE=<your Baseten or Modal OpenAI-compatible base URL>
+LLM_API_KEY=<your Baseten or Modal API key>
+LLM_MODEL=openai/meta-models/muse-spark-open-1026
+LLM_TRANSCRIBE_MODEL=muse-voice-transcribe-1.0
+```
+
+Status: configured but **not yet verified end to end** — the hosted Muse Spark path is
+the verified one. After one brief runs cleanly on the open model, confirm here.
+
 ## Repo layout
 
 ```text

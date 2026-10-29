@@ -80,6 +80,8 @@ function runToBrief(patientId: string, run: ApiBriefRun): MdtBrief {
     interactions: (run.interactions ?? []).map(toInteraction),
     overdueChecks: (run.overdue_checks ?? []).map(toOverdueCheck),
     removed,
+    model: run.model ?? '',
+    prompt_version: run.prompt_version ?? '',
     generatedAt: new Date().toISOString(),
   };
 }

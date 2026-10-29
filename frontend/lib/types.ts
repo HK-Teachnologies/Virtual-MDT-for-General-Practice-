@@ -75,6 +75,8 @@ export interface MdtBrief {
   interactions: BriefInteraction[];
   overdueChecks: BriefOverdueCheck[];
   removed: RemovedPoint[];
+  model: string;
+  prompt_version: string;
   generatedAt: string;
 }
 
@@ -120,6 +122,8 @@ export interface ApiBriefRun {
   patient_id: string;
   status: string;
   current_step: string;
+  model: string;
+  prompt_version: string;
   specialties: string[];
   error: string;
   items: ApiBriefItem[];

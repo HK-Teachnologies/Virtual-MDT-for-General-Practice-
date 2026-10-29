@@ -76,6 +76,16 @@ export function toCitedLabels(raw: unknown): CitedLabel[] {
     .filter((c) => c.label !== '');
 }
 
+/** Small print under each brief: which model prepared it, and which prompt. */
+export function modelLine(model: string, promptVersion: string): string {
+  const short = (model || '').split('/').pop() || 'unknown model';
+  const pretty = short
+    .split(/[-_]/)
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+  return `Prepared by ${pretty} · prompt ${promptVersion || '?'}`;
+}
+
 /** One-line plain-text rendering for copy export and specialist-review snapshots. */
 export function interactionLine(x: BriefInteraction): string {
   const drugs = x.drugs.length > 0 ? `${x.drugs.join(' + ')}: ` : '';
