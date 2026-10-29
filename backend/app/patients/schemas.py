@@ -1,8 +1,13 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 from app.mdt.schemas import TranscriptionRead
+
+
+def _coerce_summary(value: object) -> dict:
+    """Pre-0019 rows store NULL: treat a missing summary as empty."""
+    return value if isinstance(value, dict) else {}
 
 
 class PatientCreate(BaseModel):
@@ -57,6 +62,10 @@ class VisitRead(BaseModel):
     source: str
     patient_summary: dict = {}
     clinic: ClinicRef | None = None
+
+    _null_summary_to_empty = field_validator("patient_summary", mode="before")(
+        _coerce_summary
+    )
     attachments: list[AttachmentRead] = []
     sections: list["SectionRead"] = []
 

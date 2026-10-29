@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class BriefRequest(BaseModel):
@@ -31,6 +31,12 @@ class BriefRunRead(BaseModel):
     prompt_version: str
     patient_summary: dict = {}
     specialties: list[str] = []
+
+    @field_validator("patient_summary", mode="before")
+    @classmethod
+    def _null_summary_to_empty(cls, value: object) -> dict:
+        """Pre-0018 runs store NULL: treat a missing summary as empty."""
+        return value if isinstance(value, dict) else {}
     error: str = ""
     created_at: datetime
     completed_at: datetime | None = None

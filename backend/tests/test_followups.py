@@ -200,6 +200,36 @@ def test_visit_summary_refreshes_with_sections(client: TestClient):
     assert visit["patient_summary"]["en"]
 
 
+def test_null_visit_summary_serializes_as_empty(client: TestClient, monkeypatch):
+    """Pre-0019 rows store NULL patient_summary: record endpoints must
+    still return 200 (live 500 regression)."""
+    from app.db.session import SessionLocal
+    from app.patients.models import Visit
+
+    headers = _headers(client)
+    patient_id, token = _patient_token(client, "452452", monkeypatch)
+    ph = {"Authorization": f"Bearer {token}"}
+    r = client.post(
+        f"/api/patients/{patient_id}/visits",
+        data={"notes": "Routine review.", "visit_date": "2026-10-29"},
+        headers=headers,
+    )
+    visit_id = r.json()["id"]
+    db = SessionLocal()
+    try:
+        db.get(Visit, visit_id).patient_summary = None
+        db.commit()
+    finally:
+        db.close()
+
+    me = client.get("/api/patient-auth/me", headers=ph)
+    assert me.status_code == 200, me.text
+    assert me.json()["visits"][0]["patient_summary"] == {}
+    staff = client.get(f"/api/patients/{patient_id}", headers=headers)
+    assert staff.status_code == 200, staff.text
+    assert staff.json()["visits"][0]["patient_summary"] == {}
+
+
 def test_my_summary_needs_no_brief(client: TestClient, monkeypatch):
     """A patient with visits but no MDT review still gets visit lines."""
     headers = _headers(client)
