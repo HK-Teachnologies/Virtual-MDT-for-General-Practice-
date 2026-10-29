@@ -254,8 +254,8 @@ def respond(
     db: Session = Depends(get_db),
 ):
     """Reply in text, by voice recording, with a photo attached, or any mix.
-    Voice is transcribed to English text; the audio itself is never kept
-    or served."""
+    Voice is transcribed (specialists respond in English); the audio
+    itself is never kept or served."""
     review = db.get(Review, review_id)
     if review is None:
         raise HTTPException(status_code=404, detail="Review not found")
@@ -277,7 +277,7 @@ def respond(
             (voice_dir / stored).write_bytes(raw)
             if not body:
                 try:
-                    body = llm.transcribe_to_english(audio_path).strip()
+                    body = llm.transcribe_audio(audio_path).strip()
                 except llm.LLMError as exc:
                     raise HTTPException(
                         status_code=502, detail=f"Voice transcription failed: {exc}"

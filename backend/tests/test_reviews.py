@@ -249,15 +249,15 @@ def test_response_image_attach_and_view(client: TestClient):
     assert r.status_code == 400, r.text
 
 
-def test_response_voice_transcribed_to_english_text_only(
+def test_response_voice_transcribed_to_text_only(
     client: TestClient, monkeypatch
 ):
-    """Voice responses come back as English text; the audio itself is
-    never kept or served."""
+    """Voice responses come back as transcribed text (specialists respond
+    in English); the audio itself is never kept or served."""
     from app.llm import client as llm_client
 
     monkeypatch.setattr(
-        llm_client, "transcribe_to_english", lambda path: "The fever is gone"
+        llm_client, "transcribe_audio", lambda path, language=None: "The fever is gone"
     )
     admin = admin_token(client)
     requester_id, requester_token = _staff_and_token(client, admin, "vx-requester@example.com")

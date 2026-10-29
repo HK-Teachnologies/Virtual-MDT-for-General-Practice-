@@ -39,8 +39,8 @@ export default function Guide() {
         </p>
         <ul>
           <li>
-            <strong>Record dictation</strong> — press to record, press Stop to attach. The
-            AI transcribes it to English text for your verification after saving; the
+            <strong>Record dictation</strong> — press to record (in English), press Stop
+            to attach. The AI transcribes it for your verification after saving; the
             recording itself is deleted and never sent back down.
           </li>
           <li>
@@ -93,7 +93,7 @@ export default function Guide() {
       <Step n="6" title="Respond and close">
         <p>
           Specialists open assigned reviews from <strong>Reviews → Assigned to me</strong>{' '}
-          and reply in text, by voice note (transcribed to English text — the recording
+          and reply in text, by voice note (transcribed — the recording
           is not kept), or with a photo.
           Reviews you sent live under <strong>Requested by me</strong>. The requester or
           an admin <strong>closes</strong> the review when done — reviews are responded

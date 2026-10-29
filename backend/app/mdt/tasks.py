@@ -154,7 +154,9 @@ def transcribe_attachment(attachment_id: str) -> str:
             )
         )
         if is_audio:
-            kind, text = "audio", llm.transcribe_to_english(attachment.stored_path)
+            # Clinicians dictate in English: plain transcription, no
+            # translation step (patients get translate_to_english instead).
+            kind, text = "audio", llm.transcribe_audio(attachment.stored_path)
             model = settings.llm_transcribe_model
         elif filename_lower.endswith((".pdf", ".txt", ".md")):
             # Deterministic read (PyMuPDF/UTF-8) — no model call needed.

@@ -81,9 +81,9 @@ After the brief is ready, the case can be sent to specialists for input:
    the patient page shows "Sent - waiting for review" with a link, and no new
    brief can be prepared. Close the review to start another round.
 5. **Respond** — Specialists open it from Reviews → Assigned to me and reply
-   in text, by voice recording (transcribed to English text; the audio itself
-   is never kept or served), or with a photo attached. The requester is emailed
-   on each response. Reviews the user sent live under Requested by me.
+   in text, by voice recording (transcribed; the audio itself is never kept
+   or served), or with a photo attached. The requester is emailed on each
+   response. Reviews the user sent live under Requested by me.
 6. **Close** — The requester (or an admin) closes the review when the loop is
    complete. Reviews are never approved/rejected — they are responded to.
 
@@ -225,10 +225,11 @@ Backend settings come from `deployment/docker-compose/.env` (see `.env.example`)
   server, so patient text stays inside the deployment for retrieval; only the
   de-identified case text and evidence excerpts go to the Meta Model API for
   planning, drafting, self-check, vision reads and transcription.
-- **Voice is transcription fuel only.** Dictations and voice notes (English,
-  Luganda, or Kiswahili) are transcribed to English text; the audio file is
-  deleted once transcription succeeds and is never served to any user — text
-  is what travels on slow connections.
+- **Voice is transcription fuel only.** Clinicians dictate in English and are
+  transcribed as-is; patient voice notes (English, Luganda, or Kiswahili) are
+  transcribed to English text. The audio file is deleted once transcription
+  succeeds and is never served to any user — text is what travels on slow
+  connections.
 - **Access control.** Staff sign in with passwords (admin-managed accounts);
   patients use a separate OTP login that sees only their own record. Review
   links require sign-in.
