@@ -1,5 +1,5 @@
 import { API_BASE } from './api';
-import type { ApiPatient } from './types';
+import type { ApiFollowUp, ApiPatient, MySummary } from './types';
 
 const STORAGE_KEY = 'mdt-patient-token';
 
@@ -48,4 +48,42 @@ export async function fetchOwnRecord(token: string): Promise<ApiPatient | undefi
 
 export function clearPatientToken() {
   localStorage.removeItem(STORAGE_KEY);
+}
+
+export async function fetchMySummary(token: string): Promise<MySummary | undefined> {
+  const res = await fetch(`${API_BASE}/api/patient-auth/my-summary`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return undefined;
+  return (await res.json()) as MySummary;
+}
+
+export async function fetchMyQuestions(token: string): Promise<ApiFollowUp[] | undefined> {
+  const res = await fetch(`${API_BASE}/api/followups/mine`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return undefined;
+  return (await res.json()) as ApiFollowUp[];
+}
+
+export async function answerQuestion(
+  token: string,
+  id: string,
+  text: string,
+  audio: File | null,
+): Promise<ApiFollowUp> {
+  const form = new FormData();
+  form.append('text', text);
+  if (audio) form.append('audio', audio);
+  const res = await fetch(`${API_BASE}/api/followups/${id}/answer`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiFollowUp;
+}
+
+export function myAnswerAudioUrl(id: string): string {
+  return `${API_BASE}/api/followups/mine/${id}/audio`;
 }

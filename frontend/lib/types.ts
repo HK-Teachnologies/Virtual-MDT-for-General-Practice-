@@ -31,6 +31,37 @@ export interface CitedLabel {
   page: number | null;
 }
 
+export interface ApiFollowUp {
+  id: string;
+  patient_id: string;
+  asked_by: string;
+  asker_name: string;
+  question: string;
+  answer_text: string;
+  has_audio: boolean;
+  status: string;
+  created_at: string;
+  answered_at: string | null;
+}
+
+export interface MySummaryVisit {
+  date: string;
+  en: string;
+  sw: string;
+  lg: string;
+}
+
+export interface MySummary {
+  run_id: string | null;
+  completed_at: string | null;
+  summary: {
+    en: string;
+    sw: string;
+    lg: string;
+    visits?: MySummaryVisit[];
+  };
+}
+
 export interface BriefItem {
   id: string;
   specialty: string;

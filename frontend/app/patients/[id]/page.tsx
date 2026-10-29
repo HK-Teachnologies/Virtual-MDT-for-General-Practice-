@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import CaptureForm from '../../../components/CaptureForm';
+import FollowUpThread from '../../../components/FollowUpThread';
 import PatientDetails from '../../../components/PatientDetails';
 import MdtBriefView from '../../../components/MdtBriefView';
 import ReviewSendDialog from '../../../components/ReviewSendDialog';
@@ -314,6 +315,8 @@ export default function PatientRecord() {
           onAdded={(v) => setPatient({ ...patient, visits: [v, ...patient.visits] })}
         />
       </section>
+
+      {token && <FollowUpThread patientId={patient.id} token={token} />}
 
       <section className="panel">
         <h2>MDT review</h2>

@@ -1,4 +1,4 @@
-import type { ApiBriefRun, ApiPatient, ApiReview, ApiSection, ApiTranscription, ApiVisit } from './types';
+import type { ApiBriefRun, ApiFollowUp, ApiPatient, ApiReview, ApiSection, ApiTranscription, ApiVisit } from './types';
 
 // Base URL of the FastAPI backend (origin only: every path below adds /api).
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -149,6 +149,31 @@ export async function getOpenReviews(token: string, patientId: string): Promise<
   });
   if (!res.ok) throw new Error(await readError(res));
   return (await res.json()) as ApiReview[];
+}
+
+export async function askFollowUp(
+  token: string,
+  patientId: string,
+  question: string,
+): Promise<ApiFollowUp> {
+  const res = await fetch(`${API_BASE}/api/followups`, {
+    method: 'POST',
+    headers: authHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ patient_id: patientId, question }),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiFollowUp;
+}
+
+export async function fetchFollowUpThread(
+  token: string,
+  patientId: string,
+): Promise<ApiFollowUp[]> {
+  const res = await fetch(`${API_BASE}/api/followups/for-patient/${patientId}`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiFollowUp[];
 }
 
 export async function updatePatient(
