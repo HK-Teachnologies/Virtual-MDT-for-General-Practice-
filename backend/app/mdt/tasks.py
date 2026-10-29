@@ -154,7 +154,7 @@ def transcribe_attachment(attachment_id: str) -> str:
             )
         )
         if is_audio:
-            kind, text = "audio", llm.transcribe_audio(attachment.stored_path)
+            kind, text = "audio", llm.transcribe_to_english(attachment.stored_path)
             model = settings.llm_transcribe_model
         elif filename_lower.endswith((".pdf", ".txt", ".md")):
             # Deterministic read (PyMuPDF/UTF-8) — no model call needed.
@@ -189,6 +189,10 @@ def transcribe_attachment(attachment_id: str) -> str:
             )
         patient_id = _patient_of(db, attachment.visit_id)
         db.commit()
+        if is_audio:
+            # Transcription-only: the text is the record; the bytes are
+            # never served, so free the disk (kept on failure for retry).
+            Path(attachment.stored_path).unlink(missing_ok=True)
         safe_delay(embed_patient_chunks, patient_id)
         # A machine read adds visit content: refresh the patient summary.
         safe_delay(summarize_visit, attachment.visit_id)

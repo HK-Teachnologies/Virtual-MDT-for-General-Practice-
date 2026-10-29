@@ -254,8 +254,8 @@ def respond(
     db: Session = Depends(get_db),
 ):
     """Reply in text, by voice recording, with a photo attached, or any mix.
-    Voice is transcribed so the response is always readable (and listenable
-    when audio was kept)."""
+    Voice is transcribed to English text; the audio itself is never kept
+    or served."""
     review = db.get(Review, review_id)
     if review is None:
         raise HTTPException(status_code=404, detail="Review not found")
@@ -265,7 +265,7 @@ def respond(
         raise HTTPException(status_code=400, detail="Review is closed")
 
     body = text.strip()
-    audio_path: str | None = None
+    audio_received = False
     if audio is not None:
         raw = audio.file.read()
         if raw:
@@ -273,15 +273,18 @@ def respond(
             stored = f"{uuid.uuid4().hex}_{safe}"
             voice_dir = Path(settings.upload_dir) / "review_audio"
             voice_dir.mkdir(parents=True, exist_ok=True)
-            (voice_dir / stored).write_bytes(raw)
             audio_path = str(voice_dir / stored)
+            (voice_dir / stored).write_bytes(raw)
             if not body:
                 try:
-                    body = llm.transcribe_audio(audio_path).strip()
+                    body = llm.transcribe_to_english(audio_path).strip()
                 except llm.LLMError as exc:
                     raise HTTPException(
                         status_code=502, detail=f"Voice transcription failed: {exc}"
                     )
+            # Transcription-only: free the disk, keep the text.
+            Path(audio_path).unlink(missing_ok=True)
+            audio_received = True
     image_path: str | None = None
     image_content_type: str | None = None
     if image is not None:
@@ -298,7 +301,7 @@ def respond(
             (image_dir / stored).write_bytes(raw_image)
             image_path = str(image_dir / stored)
             image_content_type = image.content_type
-    if not body and audio_path is None and image_path is None:
+    if not body and not audio_received and image_path is None:
         raise HTTPException(
             status_code=400,
             detail="Write a response or attach a voice recording or image",
@@ -307,7 +310,7 @@ def respond(
         review_id=review.id,
         author_id=current.id,
         text=body,
-        audio_path=audio_path,
+        audio_path=None,
         image_path=image_path,
         image_content_type=image_content_type,
     )
@@ -333,25 +336,10 @@ def respond(
         author_email=author.email if author else "",
         author_name=author.full_name if author else None,
         text=response.text,
-        has_audio=bool(audio_path),
+        has_audio=False,
         has_image=bool(image_path),
         created_at=response.created_at,
     )
-
-
-@router.get("/responses/{response_id}/audio")
-def response_audio(
-    response_id: str,
-    current: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    response = db.get(ReviewResponse, response_id)
-    if response is None or not response.audio_path:
-        raise HTTPException(status_code=404, detail="No recording for this response")
-    review = db.get(Review, response.review_id)
-    if review is None or not _can_see(db, review, current):
-        raise HTTPException(status_code=403, detail="Not part of this review")
-    return FileResponse(response.audio_path, media_type="audio/webm")
 
 
 @router.get("/responses/{response_id}/image")

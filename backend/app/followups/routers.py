@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -114,66 +113,46 @@ def answer_question(
     current: Patient = Depends(get_current_patient),
     db: Session = Depends(get_db),
 ):
-    """Patient answers by text, voice recording, or both."""
+    """Patient answers by text, voice recording, or both. Voice is
+    transcribed to English text; the audio itself is never kept or served."""
     followup = db.get(FollowUp, followup_id)
     if followup is None or followup.patient_id != current.id:
         raise HTTPException(status_code=404, detail="Question not found")
     body = text.strip()
-    audio_path: str | None = followup.answer_audio_path
+    audio_received = False
     if audio is not None:
         raw = audio.file.read()
         if raw:
+            audio_received = True
             safe = re.sub(r"[^A-Za-z0-9_.-]", "_", Path(audio.filename or "voice").name)
             stored = f"{uuid.uuid4().hex}_{safe}"
             voice_dir = Path(settings.upload_dir) / "followup_audio"
             voice_dir.mkdir(parents=True, exist_ok=True)
-            (voice_dir / stored).write_bytes(raw)
             audio_path = str(voice_dir / stored)
+            (voice_dir / stored).write_bytes(raw)
             if not body:
                 try:
-                    body = llm.transcribe_audio(audio_path).strip()
+                    body = llm.transcribe_to_english(audio_path).strip()
                 except llm.LLMError as exc:
                     raise HTTPException(
                         status_code=502, detail=f"Voice transcription failed: {exc}"
                     )
-    if not body and audio_path is None:
+            # Transcription-only: free the disk, keep the text.
+            Path(audio_path).unlink(missing_ok=True)
+    if not body:
         raise HTTPException(
-            status_code=400, detail="Type an answer or record a voice note"
+            status_code=400,
+            detail=(
+                "We could not hear anything in your recording — please "
+                "try again or type your answer"
+                if audio_received
+                else "Type an answer or record a voice note"
+            ),
         )
     followup.answer_text = body
-    followup.answer_audio_path = audio_path
+    followup.answer_audio_path = None
     followup.status = "answered"
     followup.answered_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(followup)
     return _read(followup, db)
-
-
-@router.get("/{followup_id}/audio")
-def followup_audio(
-    followup_id: str,
-    current: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Staff listen to a patient's voice answer."""
-    followup = db.get(FollowUp, followup_id)
-    if followup is None or not followup.answer_audio_path:
-        raise HTTPException(status_code=404, detail="No recording for this answer")
-    return FileResponse(followup.answer_audio_path, media_type="audio/webm")
-
-
-@router.get("/mine/{followup_id}/audio")
-def my_answer_audio(
-    followup_id: str,
-    current: Patient = Depends(get_current_patient),
-    db: Session = Depends(get_db),
-):
-    """Patient listens back to their own voice answer."""
-    followup = db.get(FollowUp, followup_id)
-    if (
-        followup is None
-        or followup.patient_id != current.id
-        or not followup.answer_audio_path
-    ):
-        raise HTTPException(status_code=404, detail="No recording for this answer")
-    return FileResponse(followup.answer_audio_path, media_type="audio/webm")

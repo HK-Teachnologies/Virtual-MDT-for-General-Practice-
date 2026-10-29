@@ -249,6 +249,48 @@ def test_response_image_attach_and_view(client: TestClient):
     assert r.status_code == 400, r.text
 
 
+def test_response_voice_transcribed_to_english_text_only(
+    client: TestClient, monkeypatch
+):
+    """Voice responses come back as English text; the audio itself is
+    never kept or served."""
+    from app.llm import client as llm_client
+
+    monkeypatch.setattr(
+        llm_client, "transcribe_to_english", lambda path: "The fever is gone"
+    )
+    admin = admin_token(client)
+    requester_id, requester_token = _staff_and_token(client, admin, "vx-requester@example.com")
+    specialist_id, specialist_token = _staff_and_token(
+        client, admin, "vx-specialist@example.com", role="pharmacist"
+    )
+    spec = _specialty(client, admin, "Voice Test Spec")
+    r = client.post(
+        f"/api/specialties/{spec['id']}/members",
+        json={"user_id": specialist_id},
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r.status_code == 200, r.text
+    patient = _patient(client, requester_token, "000023")
+    review = _open_review(client, specialist_id, requester_token, patient["id"], spec["id"])
+
+    r = client.post(
+        f"/api/reviews/{review['id']}/responses",
+        files=[("audio", ("note.webm", b"fake-audio-bytes", "audio/webm"))],
+        headers={"Authorization": f"Bearer {specialist_token}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["text"] == "The fever is gone"
+    assert r.json()["has_audio"] is False
+    response_id = r.json()["id"]
+
+    missing = client.get(
+        f"/api/reviews/responses/{response_id}/audio",
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert missing.status_code == 404
+
+
 def test_open_reviews_for_patient(client: TestClient):
     admin = admin_token(client)
     requester_id, requester_token = _staff_and_token(client, admin, "fp-requester@example.com")

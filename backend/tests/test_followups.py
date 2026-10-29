@@ -79,11 +79,19 @@ def test_followup_ask_answer_text(client: TestClient, monkeypatch):
     assert empty.status_code == 400
 
 
-def test_followup_voice_answer_transcribed(client: TestClient, monkeypatch):
+def test_followup_voice_answer_transcribed_to_english_text_only(
+    client: TestClient, monkeypatch
+):
+    """Voice answers come back as English text; the audio itself is
+    never kept or served (bandwidth + privacy)."""
+    from app.db.session import SessionLocal
+    from app.followups.models import FollowUp
     from app.llm import client as llm_client
 
     monkeypatch.setattr(
-        llm_client, "transcribe_audio", lambda path: "Voice answer transcript"
+        llm_client,
+        "transcribe_to_english",
+        lambda path: "The headache is gone",
     )
     headers = _headers(client)
     patient_id, token = _patient_token(client, "446446", monkeypatch)
@@ -101,16 +109,17 @@ def test_followup_voice_answer_transcribed(client: TestClient, monkeypatch):
         headers=ph,
     )
     assert answered.status_code == 200, answered.text
-    assert answered.json()["answer_text"] == "Voice answer transcript"
-    assert answered.json()["has_audio"] is True
+    assert answered.json()["answer_text"] == "The headache is gone"
+    assert answered.json()["has_audio"] is False
 
-    audio = client.get(f"/api/followups/{qid}/audio", headers=headers)
-    assert audio.status_code == 200
-    assert audio.content == b"fake-audio-bytes"
-
-    # Patient tokens cannot use the staff audio endpoint.
-    denied = client.get(f"/api/followups/{qid}/audio", headers=ph)
-    assert denied.status_code in (401, 403)
+    # No bytes on disk, no column reference, no endpoint.
+    db = SessionLocal()
+    try:
+        assert db.get(FollowUp, qid).answer_audio_path is None
+    finally:
+        db.close()
+    assert client.get(f"/api/followups/{qid}/audio", headers=headers).status_code == 404
+    assert client.get(f"/api/followups/mine/{qid}/audio", headers=ph).status_code == 404
 
 
 def _ready_brief(client: TestClient, headers: dict, patient_id: str) -> dict:

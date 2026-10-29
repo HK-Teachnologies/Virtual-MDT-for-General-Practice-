@@ -71,6 +71,9 @@ _ECHO = {
         "sw": "Swali la echo.",
         "lg": "Ekibuuzo kya echo.",
     },
+    "translate_en": {
+        "en": "Echo transcription in English.",
+    },
 }
 
 
@@ -139,6 +142,23 @@ def describe_image(path: str, mime: str, instruction: str) -> str:
     except Exception as exc:
         raise LLMError(f"vision read failed: {exc}") from exc
     return resp.choices[0].message.content or ""
+
+
+def transcribe_to_english(path: str) -> str:
+    """Speech-to-text plus translation: Luganda/Swahili/English speech in,
+    plain English text out. Audio is transcription fuel only — callers must
+    not serve the file to users."""
+    from app.llm.prompts import TRANSLATE_ENGLISH_SYSTEM
+
+    if settings.llm_provider == "echo":
+        return "Echo transcription in English."
+    text = transcribe_audio(path).strip()
+    if not text:
+        return ""
+    raw = complete_json(
+        system=TRANSLATE_ENGLISH_SYSTEM, user=text, kind="translate_en"
+    )
+    return str(raw.get("en", "")).strip()
 
 
 def transcribe_audio(path: str, language: str | None = None) -> str:
