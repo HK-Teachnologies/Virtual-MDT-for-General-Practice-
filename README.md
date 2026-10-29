@@ -174,6 +174,26 @@ Backend settings come from `deployment/docker-compose/.env` (see `.env.example`)
   clinical reasoning) and links to its cited guideline page; the agent's
   self-check removes unsupported claims and keeps an audit of what it removed.
 - Synthetic data only during the hackathon.
+
+### Data protection
+
+- **De-identified by design.** Names, dates of birth, phone numbers and email
+  addresses never leave the database towards the AI model: the case summary
+  carries age (not date of birth), and every staff-typed note, visit section
+  and machine-read transcript is stripped of the patient's own identifiers
+  plus any other email or phone-like number before it is sent. Clinical
+  content (dates, BP readings, lab values) is preserved.
+- **Known limit — labelled photos.** A photograph of a labelled lab slip or
+  patient-held book can expose a name to the vision model in the image pixels,
+  which text redaction cannot remove. Photograph the clinical content, not the
+  name label, wherever possible.
+- **Local first.** Embeddings and reranking run on the self-hosted model
+  server, so patient text stays inside the deployment for retrieval; only the
+  de-identified case text and evidence excerpts go to the Meta Model API for
+  planning, drafting, self-check, vision reads and transcription.
+- **Access control.** Staff sign in with passwords (admin-managed accounts);
+  patients use a separate OTP login that sees only their own record. Review
+  links require sign-in.
 - Future deployment must follow Uganda's Data Protection and Privacy Act, 2019.
 
 ## Roadmap

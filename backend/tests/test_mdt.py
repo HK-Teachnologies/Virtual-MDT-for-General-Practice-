@@ -627,6 +627,90 @@ def test_brief_reranks_wide_guideline_net(monkeypatch, client: TestClient):
     assert "doc 0" not in evidence and "doc 1" not in evidence
 
 
+def test_redact_pii_unit():
+    from app.mdt.tasks import redact_pii
+
+    ids = [("Sarah Nakato", "[name redacted]"), ("+256700000111", "[phone redacted]")]
+    text = (
+        "Sarah Nakato, phone +256 700 000111, email sarah.n@example.com. "
+        "Sister called 0770111222. BP 148/96 on 2026-10-29, HbA1c 8.1%, CD4 350. "
+        "The patient asks to stay local."
+    )
+    clean = redact_pii(text, ids)
+    assert "Sarah" not in clean and "Nakato" not in clean
+    assert "+256" not in clean and "0770111222" not in clean
+    assert "sarah.n@example.com" not in clean
+    assert "[name redacted]" in clean and "[phone redacted]" in clean
+    assert "[email redacted]" in clean
+    # Clinical content survives: BP, date, labs, and the everyday word.
+    assert "148/96" in clean and "2026-10-29" in clean
+    assert "8.1%" in clean and "350" in clean
+    assert "patient asks to stay local" in clean
+
+
+def test_brief_sends_no_identifiers_to_model(monkeypatch, client: TestClient):
+    """The plan prompt carries age (not DOB) and no name, phone or email —
+    from the header, the notes, or a machine-read attachment."""
+    from app.core.config import settings
+    from app.mdt import tasks
+
+    captured: dict = {}
+    monkeypatch.setattr(settings, "llm_provider", "litellm")
+    monkeypatch.setattr(tasks.llm, "embed", lambda texts: [[0.1] * 768 for _ in texts])
+
+    def fake_complete_json(*, system: str, user: str, kind: str, **kwargs):
+        if kind == "plan":
+            captured["plan_user"] = user
+            return {"specialties": [], "queries": ["qq"], "reasoning": "t"}
+        if kind == "draft":
+            return {"specialties": [], "items": [], "interactions": [], "overdue_checks": []}
+        if kind == "selfcheck":
+            captured["check_user"] = user
+            return {"verdicts": []}
+        raise AssertionError(f"unexpected kind {kind}")
+
+    monkeypatch.setattr(tasks.llm, "complete_json", fake_complete_json)
+
+    token = admin_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    r = client.post(
+        "/api/patients",
+        json={
+            "full_name": "Sarah Nakato",
+            "date_of_birth": "1992-05-17",
+            "sex": "Female",
+            "phone": "+256700000111",
+            "email": "sarah.n@example.com",
+        },
+        headers=headers,
+    )
+    assert r.status_code == 201, r.text
+    patient_id = r.json()["id"]
+    r = client.post(
+        f"/api/patients/{patient_id}/visits",
+        data={
+            "notes": "Sarah Nakato reports headache. Call +256700000111 or sarah.n@example.com. BP 148/96.",
+            "visit_date": "2026-10-29",
+        },
+        headers=headers,
+    )
+    assert r.status_code == 201, r.text
+    r = client.post(
+        "/api/mdt/brief", json={"patient_id": patient_id}, headers=headers
+    )
+    assert r.status_code == 202, r.text
+    assert r.json()["status"] == "ready", r.json()
+
+    case = captured["plan_user"]
+    assert "Sarah" not in case and "Nakato" not in case
+    assert "700000111" not in case
+    assert "sarah.n@example.com" not in case
+    assert "1992-05-17" not in case
+    assert "DOB" not in case
+    assert "-year-old" in case
+    assert "148/96" in case  # clinical numbers still reach the model
+
+
 def test_canonical_specialties_unit():
     from app.mdt.tasks import _canonical_specialties
 

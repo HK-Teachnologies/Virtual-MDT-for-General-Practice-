@@ -8,7 +8,7 @@ progress. In tests (CELERY_TASK_ALWAYS_EAGER=1) everything runs inline.
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from celery import Celery
@@ -71,12 +71,18 @@ def chunk_text(text: str, size: int = 800) -> list[str]:
 
 
 def _timeline_text(db, patient_id: str) -> str:
-    """De-identified case text: dates, clinics, notes, sections. No names,
-    phones, or emails ever leave the database towards the model."""
+    """De-identified case text: age, sex, dates, clinics, notes, sections.
+
+    No names, dates of birth, phones, or emails ever leave the database
+    towards the model: the header carries age (not DOB), and every
+    staff-typed or machine-read line is passed through redact_pii with
+    the patient's own identifiers.
+    """
     from app.clinics.models import Clinic
     from app.patients.models import Attachment, Patient, Visit, VisitSection
 
     patient = db.get(Patient, patient_id)
+    identifiers = _patient_identifiers(patient)
     visits = (
         db.scalars(
             select(Visit)
@@ -85,20 +91,21 @@ def _timeline_text(db, patient_id: str) -> str:
         ).all()
     )
     lines = [
-        f"Patient: adult, sex {patient.sex or 'unknown'}, "
-        f"DOB {patient.date_of_birth or 'unknown'}."
+        f"Patient: {_age_years(patient.date_of_birth)}, sex {patient.sex or 'unknown'}."
     ]
     for visit in visits:
         clinic = db.get(Clinic, visit.clinic_id) if visit.clinic_id else None
         lines.append(
             f"\nVisit {visit.visit_date} [{clinic.name if clinic else 'general'}]: "
-            f"{visit.notes or '(no notes)'}"
+            f"{redact_pii(visit.notes or '(no notes)', identifiers)}"
         )
         sections = db.scalars(
             select(VisitSection).where(VisitSection.visit_id == visit.id)
         ).all()
         for section in sections:
-            lines.append(f"  {section.section}: {section.content}")
+            lines.append(
+                f"  {section.section}: {redact_pii(section.content, identifiers)}"
+            )
         attachments = db.scalars(
             select(Attachment).where(Attachment.visit_id == visit.id)
         ).all()
@@ -110,7 +117,9 @@ def _timeline_text(db, patient_id: str) -> str:
             )
             if tr and tr.text:
                 tag = "verified" if tr.verified else "UNVERIFIED machine read"
-                lines.append(f"  attached {tr.kind} ({tag}): {tr.text}")
+                lines.append(
+                    f"  attached {tr.kind} ({tag}): {redact_pii(tr.text, identifiers)}"
+                )
     return "\n".join(lines)
 
 
@@ -347,6 +356,83 @@ def _set_step(db, run: BriefRun, status: str, step: str) -> None:
     db.commit()
 
 
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
+
+def _redact_phones(text: str) -> str:
+    """Replace phone-like digit runs (9-15 digits, optional +, spaces,
+    dashes, brackets) with [phone redacted]. Runs containing '/' or '.'
+    are left alone so BP readings, dates and decimals survive."""
+
+    def _sub(match: re.Match) -> str:
+        raw = match.group(0)
+        if "/" in raw or "." in raw:
+            return raw
+        digits = re.sub(r"\D", "", raw)
+        if 9 <= len(digits) <= 15:
+            return "[phone redacted]"
+        return raw
+
+    return re.sub(r"\+?[\d][\d\s\-()]{7,}[\d]", _sub, text)
+
+
+def redact_pii(text: str, identifiers: list[tuple[str, str]]) -> str:
+    """Strip direct identifiers before text leaves the database towards a
+    model.
+
+    identifiers is [(value, label)] — e.g. the patient's own name, phone
+    and email, matched exactly (case-insensitive). Name tokens of 4+
+    letters are also matched, except everyday words ("patient", "mother",
+    ...). Any other email or phone-like number is caught by pattern.
+    Clinical numbers (dates, BP, lab values) are preserved.
+    """
+    clean = text or ""
+    for value, label in identifiers:
+        if value and value.strip():
+            clean = re.sub(
+                re.escape(value.strip()), label, clean, flags=re.IGNORECASE
+            )
+    tokens = set()
+    for value, label in identifiers:
+        if label != "[name redacted]":
+            continue
+        for token in re.split(r"\s+", value or ""):
+            token = re.sub(r"[^A-Za-z]", "", token)
+            if len(token) >= 4 and token.lower() not in _NAME_TOKEN_STOPLIST:
+                tokens.add(token)
+    for token in sorted(tokens, key=len, reverse=True):
+        clean = re.sub(
+            rf"\b{re.escape(token)}\b", "[name redacted]", clean, flags=re.IGNORECASE
+        )
+    clean = EMAIL_RE.sub("[email redacted]", clean)
+    return _redact_phones(clean)
+
+
+_NAME_TOKEN_STOPLIST = frozenset(
+    {
+        "patient", "demo", "test", "user", "mother", "father", "baby", "child",
+        "sister", "brother", "husband", "wife", "son", "daughter", "mister",
+        "miss", "missus", "doctor", "nurse", "clinic",
+    }
+)
+
+
+def _patient_identifiers(patient) -> list[tuple[str, str]]:
+    return [
+        (patient.full_name, "[name redacted]"),
+        (patient.phone or "", "[phone redacted]"),
+        (patient.email or "", "[email redacted]"),
+    ]
+
+
+def _age_years(born: date | None) -> str:
+    if born is None:
+        return "adult"
+    today = date.today()
+    age = today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+    return f"{age}-year-old"
+
+
 # Used when the clinic has no specialties configured yet, so the planner
 # still chooses from real review-routing names.
 DEFAULT_SPECIALTIES = [
@@ -523,9 +609,13 @@ def run_brief(self, run_id: str) -> str:
                 ", ".join(f"[{t}] {g['label']}" for t, g in guide_tags.items())
                 or "none",
             )
+            from app.patients.models import Patient as _Patient
+
+            _patient = db.get(_Patient, run.patient_id)
+            _identifiers = _patient_identifiers(_patient) if _patient else []
             evidence = "\n".join(
                 ["Relevant past history:"]
-                + [f"- {c.text}" for c in history_unique[:8]]
+                + [f"- {redact_pii(c.text, _identifiers)}" for c in history_unique[:8]]
                 + ["Guideline excerpts:"]
                 + guide_lines
             )
