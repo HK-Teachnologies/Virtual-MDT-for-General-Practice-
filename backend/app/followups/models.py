@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -22,6 +22,9 @@ class FollowUp(Base):
     )
     asked_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     question: Mapped[str] = mapped_column(Text, default="")
+    # Staff question translated at ask time ({en, sw, lg}) so patients
+    # read follow-ups in their language. Empty until the worker fills it.
+    question_i18n: Mapped[dict] = mapped_column(JSON, default=dict)
     answer_text: Mapped[str] = mapped_column(Text, default="")
     answer_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="open")

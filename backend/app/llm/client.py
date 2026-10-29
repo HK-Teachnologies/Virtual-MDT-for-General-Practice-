@@ -66,6 +66,11 @@ _ECHO = {
         "sw": "Muhtasari wa echo wa ziara.",
         "lg": "Echo okusumulula kwa IPS.",
     },
+    "question_i18n": {
+        "en": "Echo question.",
+        "sw": "Swali la echo.",
+        "lg": "Ekibuuzo kya echo.",
+    },
 }
 
 

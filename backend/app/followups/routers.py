@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.followups.models import FollowUp
 from app.followups.schemas import FollowUpAsk, FollowUpRead
+from app.mdt.tasks import safe_delay, translate_followup
 from app.llm import client as llm
 from app.patient_auth.routers import get_current_patient
 from app.patients.models import Patient
@@ -36,6 +37,7 @@ def _read(followup: FollowUp, db: Session) -> FollowUpRead:
         asked_by=followup.asked_by,
         asker_name=asker.full_name or asker.email if asker else "",
         question=followup.question,
+        question_i18n=dict(followup.question_i18n or {}),
         answer_text=followup.answer_text or "",
         has_audio=bool(followup.answer_audio_path),
         status=followup.status,
@@ -62,6 +64,11 @@ def ask_question(
     db.add(followup)
     db.commit()
     db.refresh(followup)
+    # Translate the staff question for the portal in the background.
+    safe_delay(translate_followup, followup.id)
+    # The task commits in its own session: reload so the response
+    # carries translations when tasks run inline (tests).
+    db.expire(followup, ["question_i18n"])
     return _read(followup, db)
 
 

@@ -24,7 +24,13 @@ from app.patients.schemas import (
     VisitSummaryUpdate,
     VisitUpdate,
 )
-from app.mdt.models import BriefItem, BriefRun, PatientChunk, Transcription
+from app.mdt.models import (
+    BriefItem,
+    BriefRun,
+    PatientChunk,
+    ReferralLetter,
+    Transcription,
+)
 from app.mdt.tasks import (
     embed_patient_chunks,
     safe_delay,
@@ -252,6 +258,9 @@ def delete_patient(
     if run_ids:
         db.execute(delete(BriefItem).where(BriefItem.run_id.in_(run_ids)))
         db.execute(delete(BriefRun).where(BriefRun.id.in_(run_ids)))
+    db.execute(
+        delete(ReferralLetter).where(ReferralLetter.patient_id == patient_id)
+    )
 
     review_ids = db.scalars(
         select(Review.id).where(Review.patient_id == patient_id)

@@ -68,6 +68,34 @@ class PatientSummaryUpdate(BaseModel):
     lg: str
 
 
+class ReferralLetterRequest(BaseModel):
+    destination_facility: str
+    reason: str
+    additional_note: str = ""
+
+
+class ReferralLetterRead(BaseModel):
+    id: str
+    run_id: str
+    patient_id: str
+    destination_facility: str
+    reason: str
+    letter_text: str
+    summary_status: str = "draft"
+    released_by_name: str | None = None
+    released_at: datetime | None = None
+    created_at: datetime
+
+
+class ReferralLetterUpdate(BaseModel):
+    """Correct the letter inputs and rebuild. Editing a released letter
+    returns it to draft."""
+
+    destination_facility: str | None = None
+    reason: str | None = None
+    additional_note: str | None = None
+
+
 class GuidelineRead(BaseModel):
     id: str
     title: str

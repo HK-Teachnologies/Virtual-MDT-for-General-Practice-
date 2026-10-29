@@ -178,6 +178,15 @@ class MySummaryVisit(BaseModel):
     released_at: datetime | None = None
 
 
+class MyReferralLetter(BaseModel):
+    id: str
+    destination_facility: str
+    reason: str
+    letter_text: str
+    released_by_name: str | None = None
+    released_at: datetime | None = None
+
+
 class MySummary(BaseModel):
     run_id: str | None = None
     completed_at: datetime | None = None
@@ -187,6 +196,8 @@ class MySummary(BaseModel):
     summary_released_at: datetime | None = None
     # Released per-visit lines only — drafts never reach the patient.
     visits: list[MySummaryVisit] = []
+    # Released referral letters, to show at any facility attended.
+    referral_letters: list[MyReferralLetter] = []
 
 
 def _staff_name(db: Session, user_id: str | None) -> str | None:
@@ -241,6 +252,18 @@ def read_own_summary(
     overall_released = (
         run is not None and (run.summary_status or "draft") == "released"
     )
+    from app.mdt.models import ReferralLetter
+
+    letters = (
+        db.scalars(
+            select(ReferralLetter)
+            .where(
+                ReferralLetter.patient_id == current.id,
+                ReferralLetter.summary_status == "released",
+            )
+            .order_by(ReferralLetter.created_at)
+        ).all()
+    )
     return MySummary(
         run_id=run.id if run else None,
         completed_at=run.completed_at if run else None,
@@ -250,4 +273,15 @@ def read_own_summary(
         else None,
         summary_released_at=run.released_at if overall_released else None,
         visits=visits,
+        referral_letters=[
+            MyReferralLetter(
+                id=letter.id,
+                destination_facility=letter.destination_facility,
+                reason=letter.reason,
+                letter_text=letter.letter_text,
+                released_by_name=_staff_name(db, letter.released_by),
+                released_at=letter.released_at,
+            )
+            for letter in letters
+        ],
     )

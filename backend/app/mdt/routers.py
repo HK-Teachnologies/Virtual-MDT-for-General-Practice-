@@ -16,6 +16,7 @@ from app.mdt.models import (
     BriefRun,
     GuidelineChunk,
     GuidelineDoc,
+    ReferralLetter,
     Transcription,
 )
 from app.mdt.schemas import (
@@ -26,6 +27,9 @@ from app.mdt.schemas import (
     GuidelineRead,
     GuidelineUpdate,
     PatientSummaryUpdate,
+    ReferralLetterRead,
+    ReferralLetterRequest,
+    ReferralLetterUpdate,
     TranscriptionRead,
     TranscriptionUpdate,
 )
@@ -249,6 +253,274 @@ def release_run_summary(
     db.commit()
     db.refresh(run)
     return _run_read(db, run)
+
+
+def _age_display(born) -> str:
+    if born is None:
+        return "adult"
+    today = datetime.now(timezone.utc).date()
+    age = today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+    return f"{age}-year-old"
+
+
+def _build_referral_letter(
+    db: Session,
+    run: BriefRun,
+    patient: Patient,
+    clinician_name: str,
+    destination: str,
+    reason: str,
+    note: str,
+) -> str:
+    """Deterministic letter from signed-off points only.
+
+    No model call: every clinical word comes from the doctor's notes or
+    sign-off. Staff-to-staff, so patient identifiers stay in. The closing
+    line covers the common case where the patient presents elsewhere.
+    """
+    from app.clinics.models import Clinic
+    from app.patients.models import Visit, VisitSection
+
+    items = db.scalars(select(BriefItem).where(BriefItem.run_id == run.id)).all()
+    signed_off = [i for i in items if i.status in ("approved", "edited")]
+    visits = (
+        db.scalars(
+            select(Visit)
+            .where(Visit.patient_id == patient.id)
+            .order_by(Visit.visit_date.desc())
+        ).all()
+    )
+    history = []
+    for visit in visits[:6]:
+        clinic = db.get(Clinic, visit.clinic_id) if visit.clinic_id else None
+        sections = db.scalars(
+            select(VisitSection).where(VisitSection.visit_id == visit.id)
+        ).all()
+        parts = [visit.notes.strip()] if visit.notes.strip() else []
+        parts += [f"[{s.section}] {s.content.strip()}" for s in sections if s.content.strip()]
+        history.append(
+            f"{visit.visit_date} ({clinic.name if clinic else 'general'}): "
+            + ("; ".join(parts) if parts else "no notes recorded")
+        )
+    history_lines = [f"- {h}" for h in history] or ["- No visits on record."]
+    lines = [
+        "REFERRAL LETTER — VIRTUAL MDT",
+        f"Date: {datetime.now(timezone.utc).date().isoformat()}",
+        f"To: {destination}",
+        f"From: {clinician_name} (via Virtual MDT)",
+        "",
+        f"Re: {patient.full_name}, {_age_display(patient.date_of_birth)}, "
+        f"{patient.sex or 'sex not recorded'}, of {patient.district or 'district not recorded'}"
+        + (f" ({patient.phone})" if patient.phone else ""),
+        "",
+        "HISTORY (most recent first):",
+        *history_lines,
+        "",
+        "AGREED FINDINGS AND PLAN (clinician-reviewed):",
+    ]
+    for item in signed_off:
+        text = (
+            item.edited_text.strip()
+            if item.status == "edited" and item.edited_text
+            else item.concern.strip()
+        )
+        lines.append(f"- [{item.specialty}] {text}")
+        if item.question and item.question.strip():
+            lines.append(f"  Question: {item.question.strip()}")
+    if run.interactions:
+        lines += ["", "FLAGGED INTERACTIONS TO CHECK:"]
+        for entry in run.interactions or []:
+            point = entry.get("point", entry) if isinstance(entry, dict) else entry
+            if isinstance(point, dict):
+                drugs = " + ".join(point.get("drugs", []))
+                lines.append(f"- {drugs + ': ' if drugs else ''}{point.get('concern', '')}")
+            else:
+                lines.append(f"- {point}")
+    if run.overdue_checks:
+        lines += ["", "OVERDUE CHECKS:"]
+        for entry in run.overdue_checks or []:
+            point = entry.get("point", entry) if isinstance(entry, dict) else entry
+            if isinstance(point, dict):
+                lines.append(
+                    f"- {point.get('check', '')}"
+                    + (f" (last done: {point.get('last_done')})" if point.get("last_done") else "")
+                )
+            else:
+                lines.append(f"- {point}")
+    lines += ["", f"REASON FOR REFERRAL: {reason}"]
+    if note:
+        lines += ["", f"ADDITIONAL NOTE: {note}"]
+    lines += [
+        "",
+        f"If {patient.full_name.split()[0]} cannot reach {destination}, "
+        f"present this letter at any health facility attended.",
+    ]
+    return "\n".join(lines)
+
+
+def _letter_read(db: Session, letter: ReferralLetter) -> ReferralLetterRead:
+    return ReferralLetterRead(
+        id=letter.id,
+        run_id=letter.run_id,
+        patient_id=letter.patient_id,
+        destination_facility=letter.destination_facility,
+        reason=letter.reason,
+        letter_text=letter.letter_text,
+        summary_status=letter.summary_status or "draft",
+        released_by_name=_releaser_name(db, letter.released_by),
+        released_at=letter.released_at,
+        created_at=letter.created_at,
+    )
+
+
+def _get_letter(db: Session, letter_id: str) -> ReferralLetter:
+    letter = db.get(ReferralLetter, letter_id)
+    if letter is None:
+        raise HTTPException(status_code=404, detail="Referral letter not found")
+    return letter
+
+
+@router.post(
+    "/runs/{run_id}/referral-letters",
+    response_model=ReferralLetterRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_referral_letter(
+    run_id: str,
+    data: ReferralLetterRequest,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Draft a referral letter from signed-off brief points.
+
+    Deterministic (no model call): every clinical word comes from the
+    doctor's notes or sign-off. Starts as draft; the patient sees it in
+    the portal only after clinician release, and can present it at any
+    facility they end up attending.
+    """
+    run = db.get(BriefRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Brief run not found")
+    destination = data.destination_facility.strip()
+    reason = data.reason.strip()
+    if not destination or not reason:
+        raise HTTPException(
+            status_code=400, detail="Destination facility and reason are required"
+        )
+    patient = db.get(Patient, run.patient_id)
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    signed_off = (
+        db.scalars(
+            select(BriefItem).where(
+                BriefItem.run_id == run.id,
+                BriefItem.status.in_(["approved", "edited"]),
+            )
+        ).all()
+    )
+    if not signed_off:
+        raise HTTPException(
+            status_code=400,
+            detail="Sign off at least one brief point before drafting the letter",
+        )
+    letter = ReferralLetter(
+        run_id=run.id,
+        patient_id=patient.id,
+        destination_facility=destination,
+        reason=reason,
+        additional_note=data.additional_note.strip(),
+        letter_text=_build_referral_letter(
+            db,
+            run,
+            patient,
+            current.full_name or current.email,
+            destination,
+            reason,
+            data.additional_note.strip(),
+        ),
+        created_by=current.id,
+    )
+    db.add(letter)
+    db.commit()
+    db.refresh(letter)
+    return _letter_read(db, letter)
+
+
+@router.get("/runs/{run_id}/referral-letters", response_model=list[ReferralLetterRead])
+def list_referral_letters(
+    run_id: str,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if db.get(BriefRun, run_id) is None:
+        raise HTTPException(status_code=404, detail="Brief run not found")
+    letters = (
+        db.scalars(
+            select(ReferralLetter)
+            .where(ReferralLetter.run_id == run_id)
+            .order_by(ReferralLetter.created_at)
+        ).all()
+    )
+    return [_letter_read(db, letter) for letter in letters]
+
+
+@router.patch("/referral-letters/{letter_id}", response_model=ReferralLetterRead)
+def update_referral_letter(
+    letter_id: str,
+    data: ReferralLetterUpdate,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Correct destination/reason/note and rebuild. Editing a released
+    letter returns it to draft."""
+    letter = _get_letter(db, letter_id)
+    patch = data.model_dump(exclude_unset=True)
+    if "destination_facility" in patch:
+        letter.destination_facility = (patch["destination_facility"] or "").strip()
+    if "reason" in patch:
+        letter.reason = (patch["reason"] or "").strip()
+    if "additional_note" in patch:
+        letter.additional_note = (patch["additional_note"] or "").strip()
+    if not letter.destination_facility or not letter.reason:
+        raise HTTPException(
+            status_code=400, detail="Destination facility and reason are required"
+        )
+    run = db.get(BriefRun, letter.run_id)
+    patient = db.get(Patient, letter.patient_id)
+    letter.letter_text = _build_referral_letter(
+        db,
+        run,
+        patient,
+        current.full_name or current.email,
+        letter.destination_facility,
+        letter.reason,
+        letter.additional_note,
+    )
+    if (letter.summary_status or "draft") == "released":
+        letter.summary_status = "draft"
+        letter.released_by = None
+        letter.released_at = None
+    db.commit()
+    db.refresh(letter)
+    return _letter_read(db, letter)
+
+
+@router.post("/referral-letters/{letter_id}/release", response_model=ReferralLetterRead)
+def release_referral_letter(
+    letter_id: str,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Release a draft letter so the patient can show it at any facility."""
+    letter = _get_letter(db, letter_id)
+    if not (letter.letter_text or "").strip():
+        raise HTTPException(status_code=400, detail="No letter to release yet")
+    letter.summary_status = "released"
+    letter.released_by = current.id
+    letter.released_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(letter)
+    return _letter_read(db, letter)
 
 
 def _guideline_read(db: Session, doc: GuidelineDoc) -> GuidelineRead:

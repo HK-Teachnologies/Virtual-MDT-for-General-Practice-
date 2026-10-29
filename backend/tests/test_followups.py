@@ -261,6 +261,191 @@ def test_patient_my_summary_endpoint(client: TestClient, monkeypatch):
     assert denied.status_code in (401, 403)
 
 
+def _brief_with_signoff(
+    client: TestClient, headers: dict, patient_id: str, approve_all: bool = False
+) -> dict:
+    run = _ready_brief(client, headers, patient_id)
+    for item in run["items"]:
+        status = "approved" if approve_all or item == run["items"][0] else "rejected"
+        r = client.patch(
+            f"/api/mdt/items/{item['id']}", json={"status": status}, headers=headers
+        )
+        assert r.status_code == 200, r.text
+    return run
+
+
+def test_followup_question_translated_at_ask(client: TestClient, monkeypatch):
+    """Staff ask once; the portal reads the question in EN/SW/LG."""
+    headers = _headers(client)
+    patient_id, token = _patient_token(client, "455455", monkeypatch)
+    ph = {"Authorization": f"Bearer {token}"}
+    asked = client.post(
+        "/api/followups",
+        json={"patient_id": patient_id, "question": "Is the headache gone?"},
+        headers=headers,
+    )
+    assert asked.status_code == 201, asked.text
+    i18n = asked.json()["question_i18n"]
+    assert i18n["en"] == "Is the headache gone?"
+    assert i18n["sw"] and i18n["lg"]
+
+    mine = client.get("/api/followups/mine", headers=ph)
+    assert mine.json()[0]["question_i18n"]["sw"]
+
+
+def test_followup_missing_translation_serializes_empty(
+    client: TestClient, monkeypatch
+):
+    """Pre-0021 questions store NULL: endpoints still return 200."""
+    from app.db.session import SessionLocal
+    from app.followups.models import FollowUp
+
+    headers = _headers(client)
+    patient_id, _token = _patient_token(client, "456456", monkeypatch)
+    asked = client.post(
+        "/api/followups",
+        json={"patient_id": patient_id, "question": "How are you?"},
+        headers=headers,
+    )
+    qid = asked.json()["id"]
+    db = SessionLocal()
+    try:
+        db.get(FollowUp, qid).question_i18n = None
+        db.commit()
+    finally:
+        db.close()
+    thread = client.get(
+        f"/api/followups/for-patient/{patient_id}", headers=headers
+    )
+    assert thread.status_code == 200, thread.text
+    assert thread.json()[0]["question_i18n"] == {}
+
+
+def test_referral_letter_uses_signed_off_only(client: TestClient):
+    """Approved/edited wording in; rejected points and suspicions out."""
+    headers = _headers(client)
+    patient_id = _patient(client, "457457")
+    client.post(
+        f"/api/patients/{patient_id}/visits",
+        data={"notes": "Fever and cough.", "visit_date": "2026-10-29"},
+        headers=headers,
+    )
+    run = _ready_brief(client, headers, patient_id)
+    assert len(run["items"]) >= 2
+    first, second = run["items"][0]["id"], run["items"][1]["id"]
+    client.patch(f"/api/mdt/items/{first}", json={"status": "approved"}, headers=headers)
+    client.patch(
+        f"/api/mdt/items/{second}",
+        json={"status": "edited", "edited_text": "Doctor wording: continue care."},
+        headers=headers,
+    )
+    letter = client.post(
+        f"/api/mdt/runs/{run['id']}/referral-letters",
+        json={
+            "destination_facility": "Mbarara Hospital",
+            "reason": "Uncontrolled pressure",
+        },
+        headers=headers,
+    )
+    assert letter.status_code == 201, letter.text
+    body = letter.json()
+    assert body["summary_status"] == "draft"
+    text = body["letter_text"]
+    assert "Review ART adherence" in text
+    assert "Doctor wording: continue care." in text
+    assert "Mbarara Hospital" in text and "Uncontrolled pressure" in text
+    assert "present this letter at any health facility" in text
+    # Rejected point stays out.
+    client.patch(
+        f"/api/mdt/items/{first}", json={"status": "rejected"}, headers=headers
+    )
+    letter2 = client.post(
+        f"/api/mdt/runs/{run['id']}/referral-letters",
+        json={"destination_facility": "Mbarara Hospital", "reason": "Again"},
+        headers=headers,
+    )
+    assert "Review ART adherence" not in letter2.json()["letter_text"]
+
+
+def test_referral_letter_requires_signoff(client: TestClient):
+    headers = _headers(client)
+    patient_id = _patient(client, "458458")
+    client.post(
+        f"/api/patients/{patient_id}/visits",
+        data={"notes": "Routine review.", "visit_date": "2026-10-29"},
+        headers=headers,
+    )
+    run = _ready_brief(client, headers, patient_id)
+    denied = client.post(
+        f"/api/mdt/runs/{run['id']}/referral-letters",
+        json={"destination_facility": "Mbarara Hospital", "reason": "Why"},
+        headers=headers,
+    )
+    assert denied.status_code == 400
+
+
+def test_referral_letter_release_flow(client: TestClient, monkeypatch):
+    """Drafts invisible in the portal; released letters show with text."""
+    from sqlalchemy import select
+
+    from app.db.session import SessionLocal
+    from app.mdt.models import ReferralLetter
+
+    headers = _headers(client)
+    patient_id, token = _patient_token(client, "459459", monkeypatch)
+    ph = {"Authorization": f"Bearer {token}"}
+    client.post(
+        f"/api/patients/{patient_id}/visits",
+        data={"notes": "Fever and cough.", "visit_date": "2026-10-29"},
+        headers=headers,
+    )
+    run = _brief_with_signoff(client, headers, patient_id, approve_all=True)
+    letter = client.post(
+        f"/api/mdt/runs/{run['id']}/referral-letters",
+        json={"destination_facility": "Mbarara Hospital", "reason": "Review"},
+        headers=headers,
+    )
+    letter_id = letter.json()["id"]
+
+    mine = client.get("/api/patient-auth/my-summary", headers=ph)
+    assert mine.json()["referral_letters"] == []
+
+    rel = client.post(
+        f"/api/mdt/referral-letters/{letter_id}/release", headers=headers
+    )
+    assert rel.status_code == 200, rel.text
+    mine = client.get("/api/patient-auth/my-summary", headers=ph)
+    letters = mine.json()["referral_letters"]
+    assert len(letters) == 1
+    assert letters[0]["destination_facility"] == "Mbarara Hospital"
+    assert "REFERRAL LETTER" in letters[0]["letter_text"]
+    assert letters[0]["released_by_name"]
+
+    # Editing a released letter returns it to draft and hides it again.
+    edit = client.patch(
+        f"/api/mdt/referral-letters/{letter_id}",
+        json={"reason": "Review sooner"},
+        headers=headers,
+    )
+    assert edit.json()["summary_status"] == "draft"
+    mine = client.get("/api/patient-auth/my-summary", headers=ph)
+    assert mine.json()["referral_letters"] == []
+
+    # Patient hard delete cascades to letters.
+    gone = client.delete(f"/api/patients/{patient_id}", headers=headers)
+    assert gone.status_code == 200, gone.text
+    db = SessionLocal()
+    try:
+        remaining = db.scalars(
+            select(ReferralLetter).where(
+                ReferralLetter.patient_id == patient_id
+            )
+        ).all()
+        assert remaining == []
+    finally:
+        db.close()
+
+
 def test_visit_summary_written_at_record_time(client: TestClient):
     """Recording a visit drafts its own patient-safe summary in the
     background (inline in tests) — still needing clinician release."""

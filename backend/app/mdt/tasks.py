@@ -21,6 +21,7 @@ from app.db.session import SessionLocal
 from app.llm import client as llm
 from app.llm.prompts import (
     DRAFT_SYSTEM,
+    FOLLOWUP_QUESTION_SYSTEM,
     PATIENT_SUMMARY_SYSTEM,
     PLAN_SYSTEM,
     SELFCHECK_SYSTEM,
@@ -314,6 +315,48 @@ def summarize_visit(visit_id: str) -> str:
         visit.summary_status = "draft"
         visit.released_by = None
         visit.released_at = None
+        db.commit()
+        return "ok"
+
+
+@celery_app.task(name="mdt.translate_followup")
+def translate_followup(followup_id: str) -> str:
+    """Translate a staff follow-up question to EN/SW/LG for the portal.
+
+    The question itself is clinician-written; only the mechanical
+    translation is machine-made. Failures only log — the portal falls
+    back to the original wording.
+    """
+    from app.followups.models import FollowUp
+    from app.patients.models import Patient
+
+    with SessionLocal() as db:
+        followup = db.get(FollowUp, followup_id)
+        if followup is None:
+            return "missing"
+        patient = db.get(Patient, followup.patient_id)
+        text = redact_pii(followup.question, _patient_identifiers(patient))
+        if settings.llm_provider == "echo":
+            i18n = {
+                "en": followup.question,
+                "sw": "Swali la echo.",
+                "lg": "Ekibuuzo kya echo.",
+            }
+        else:
+            try:
+                raw = llm.complete_json(
+                    system=FOLLOWUP_QUESTION_SYSTEM,
+                    user=text,
+                    kind="question_i18n",
+                )
+            except Exception as exc:
+                logger.warning("Follow-up translation failed, continuing: %s", exc)
+                return "failed"
+            i18n = {
+                lang: str(raw.get(lang, ""))
+                for lang in ("en", "sw", "lg")
+            }
+        followup.question_i18n = i18n
         db.commit()
         return "ok"
 
