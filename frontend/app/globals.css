@@ -700,6 +700,16 @@ textarea:focus {
   opacity: 0.75;
 }
 
+.letter-preview {
+  white-space: pre-wrap;
+  font-size: 0.95rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin: 14px 0;
+}
+
 .brief-item-head {
   display: flex;
   align-items: center;

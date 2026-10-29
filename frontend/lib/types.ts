@@ -37,6 +37,7 @@ export interface ApiFollowUp {
   asked_by: string;
   asker_name: string;
   question: string;
+  question_i18n?: { en: string; sw: string; lg: string };
   answer_text: string;
   has_audio: boolean;
   status: string;
@@ -55,6 +56,15 @@ export interface MySummaryVisit {
   released_at: string | null;
 }
 
+export interface MyReferralLetter {
+  id: string;
+  destination_facility: string;
+  reason: string;
+  letter_text: string;
+  released_by_name: string | null;
+  released_at: string | null;
+}
+
 export interface MySummary {
   run_id: string | null;
   completed_at: string | null;
@@ -66,6 +76,20 @@ export interface MySummary {
   summary_released_by_name: string | null;
   summary_released_at: string | null;
   visits: MySummaryVisit[];
+  referral_letters: MyReferralLetter[];
+}
+
+export interface ApiReferralLetter {
+  id: string;
+  run_id: string;
+  patient_id: string;
+  destination_facility: string;
+  reason: string;
+  letter_text: string;
+  summary_status: string;
+  released_by_name: string | null;
+  released_at: string | null;
+  created_at: string;
 }
 
 export interface BriefItem {

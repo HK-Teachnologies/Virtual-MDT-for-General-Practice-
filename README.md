@@ -26,9 +26,10 @@ Hackathon (26 Oct – 4 Nov 2026).
   pending → responded → closed, no-duplicate gate.
 - Guideline library: PDF upload, page-aware indexing, verified page citations.
 - Patient portal (OTP login) with release-gated AI visit summaries
-  (English/Kiswahili/Luganda) and doctor–patient follow-up Q&A, clinics
-  master, admin user/specialty management, mobile drawer navigation, in-app
-  user guide, demo data seeding.
+  (English/Kiswahili/Luganda), doctor–patient follow-up Q&A in all three
+  languages, and releasable referral letters, clinics master, admin
+  user/specialty management, mobile drawer navigation, in-app user guide,
+  demo data seeding.
 
 ![MDT brief for Demo Patient A: sourced points, safety panels, and the self-check audit](docs/brief-hero.png)
 
@@ -113,6 +114,12 @@ every summary starts as `draft` and the portal serves `released` ones:
    Visits recorded before the gate existed are queued with
    `docker compose exec backend python backfill_visit_summaries.py` —
    they land as drafts for review, never published directly.
+5. **Referral letters** — After sign-off, the doctor drafts a referral letter
+   from the approved/edited points only (deterministic text, no model call):
+   demographics, recent history, agreed findings, flagged interactions,
+   overdue checks, and the reason. Each letter is released like a summary and
+   appears in the portal, so the patient can present it at any facility they
+   end up attending — even a different hospital than intended.
 
 ## Tech stack
 

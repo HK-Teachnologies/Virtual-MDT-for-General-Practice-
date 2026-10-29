@@ -76,7 +76,25 @@ export default function PatientPortal() {
         lang={lang}
         onLang={setLang}
       />
-      <PatientQuestions initial={questions} />
+      {(summary.referral_letters ?? []).length > 0 && (
+        <section className="panel">
+          <h2>Referral letters</h2>
+          <p className="muted">
+            Show this letter at the health facility you visit — even if it is
+            not the one named below.
+          </p>
+          {(summary.referral_letters ?? []).map((l) => (
+            <div key={l.id} className="brief-item">
+              <div className="brief-item-head">
+                <strong>To {l.destination_facility}</strong>
+              </div>
+              <p className="muted">{l.reason}</p>
+              <pre className="letter-preview">{l.letter_text}</pre>
+            </div>
+          ))}
+        </section>
+      )}
+      <PatientQuestions initial={questions} lang={lang} />
       <button className="btn" type="button" onClick={signOut}>
         Sign out
       </button>

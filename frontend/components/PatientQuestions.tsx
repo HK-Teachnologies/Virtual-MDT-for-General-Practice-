@@ -43,7 +43,13 @@ function AnswerForm({ q, token, onAnswered }: { q: ApiFollowUp; token: string; o
   );
 }
 
-export default function PatientQuestions({ initial }: { initial: ApiFollowUp[] }) {
+export default function PatientQuestions({
+  initial,
+  lang,
+}: {
+  initial: ApiFollowUp[];
+  lang: 'en' | 'sw' | 'lg';
+}) {
   const [questions, setQuestions] = useState(initial);
   const token = getPatientToken();
   const open = questions.filter((q) => q.status === 'open');
@@ -53,13 +59,17 @@ export default function PatientQuestions({ initial }: { initial: ApiFollowUp[] }
     setQuestions((qs) => qs.map((q) => (q.id === updated.id ? updated : q)));
   }
 
+  function wording(q: ApiFollowUp): string {
+    return q.question_i18n?.[lang]?.trim() || q.question;
+  }
+
   return (
     <section className="panel">
       <h2>Questions from your doctor{open.length > 0 ? ` (${open.length} to answer)` : ''}</h2>
       {questions.length === 0 && <p className="muted">No questions right now.</p>}
       {open.map((q) => (
         <div key={q.id} className="brief-item">
-          <p><strong>{q.asker_name || 'Your doctor'} asks:</strong> {q.question}</p>
+          <p><strong>{q.asker_name || 'Your doctor'} asks:</strong> {wording(q)}</p>
           {token && <AnswerForm q={q} token={token} onAnswered={replace} />}
         </div>
       ))}
@@ -68,7 +78,7 @@ export default function PatientQuestions({ initial }: { initial: ApiFollowUp[] }
           <summary>Answered ({answered.length})</summary>
           {answered.map((q) => (
             <div key={q.id} className="brief-item">
-              <p className="muted">{q.question}</p>
+              <p className="muted">{wording(q)}</p>
               <p>{q.answer_text}</p>
               {q.has_audio && token && <AuthedAudio url={myAnswerAudioUrl(q.id)} token={token} />}
             </div>

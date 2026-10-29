@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import BriefSummaryGate from '../../../components/BriefSummaryGate';
 import CaptureForm from '../../../components/CaptureForm';
 import FollowUpThread from '../../../components/FollowUpThread';
+import ReferralLetters from '../../../components/ReferralLetters';
 import PatientDetails from '../../../components/PatientDetails';
 import MdtBriefView from '../../../components/MdtBriefView';
 import ReviewSendDialog from '../../../components/ReviewSendDialog';
@@ -378,6 +379,9 @@ export default function PatientRecord() {
             />
             {briefRunId && token && (
               <BriefSummaryGate runId={briefRunId} token={token} />
+            )}
+            {briefRunId && token && (
+              <ReferralLetters runId={briefRunId} token={token} />
             )}
           </>
         )}

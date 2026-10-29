@@ -1,4 +1,4 @@
-import type { ApiBriefRun, ApiFollowUp, ApiPatient, ApiReview, ApiSection, ApiTranscription, ApiVisit } from './types';
+import type { ApiBriefRun, ApiFollowUp, ApiPatient, ApiReferralLetter, ApiReview, ApiSection, ApiTranscription, ApiVisit } from './types';
 
 // Base URL of the FastAPI backend (origin only: every path below adds /api).
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -282,6 +282,43 @@ export async function releaseBriefSummary(
   });
   if (!res.ok) throw new Error(await readError(res));
   return (await res.json()) as ApiBriefRun;
+}
+
+export async function listReferralLetters(
+  token: string,
+  runId: string,
+): Promise<ApiReferralLetter[]> {
+  const res = await fetch(`${API_BASE}/api/mdt/runs/${runId}/referral-letters`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiReferralLetter[];
+}
+
+export async function createReferralLetter(
+  token: string,
+  runId: string,
+  data: { destination_facility: string; reason: string; additional_note?: string },
+): Promise<ApiReferralLetter> {
+  const res = await fetch(`${API_BASE}/api/mdt/runs/${runId}/referral-letters`, {
+    method: 'POST',
+    headers: authHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiReferralLetter;
+}
+
+export async function releaseReferralLetter(
+  token: string,
+  letterId: string,
+): Promise<ApiReferralLetter> {
+  const res = await fetch(`${API_BASE}/api/mdt/referral-letters/${letterId}/release`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiReferralLetter;
 }
 
 export async function updateTranscription(

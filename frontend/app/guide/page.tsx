@@ -155,8 +155,17 @@ export default function Guide() {
           never included — for the same edit-and-release.
         </p>
         <p>
+          To refer, open <strong>Referral letters</strong> below the brief and tap
+          <strong> New referral letter</strong>: enter the destination facility and
+          reason, then release the drafted letter. It appears in the patient portal,
+          so the patient can show it at any facility they attend — even a different
+          hospital than intended.
+        </p>
+        <p>
           Doctors can also send follow-up questions from the patient record,
-          which the patient answers by text or voice note in the portal.
+          which the patient answers by text or voice note in the portal. Questions
+          are translated automatically: the patient reads and answers in English,
+          Kiswahili, or Luganda.
         </p>
       </Step>
 
