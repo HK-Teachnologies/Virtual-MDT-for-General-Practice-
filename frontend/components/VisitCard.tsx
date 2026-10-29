@@ -10,6 +10,7 @@ import {
   updateVisit,
 } from '../lib/api';
 import type { ApiAttachment, ApiSection, ApiTranscription, ApiVisit } from '../lib/types';
+import VisitSummaryGate from './VisitSummaryGate';
 
 const TRANSCRIPT_LABEL: Record<string, string> = {
   image: 'Photo read',
@@ -404,6 +405,10 @@ export default function VisitCard({
             + Add lab / imaging / note
           </button>
         ))}
+
+      {token && !readOnly && (
+        <VisitSummaryGate visit={visit} token={token} onApply={apply} />
+      )}
 
       {error && <p className="error">{error}</p>}
     </article>

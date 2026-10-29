@@ -51,6 +51,8 @@ export interface MySummaryVisit {
   sw: string;
   lg: string;
   ready: boolean;
+  released_by_name: string | null;
+  released_at: string | null;
 }
 
 export interface MySummary {
@@ -61,6 +63,8 @@ export interface MySummary {
     sw: string;
     lg: string;
   };
+  summary_released_by_name: string | null;
+  summary_released_at: string | null;
   visits: MySummaryVisit[];
 }
 
@@ -159,6 +163,10 @@ export interface ApiBriefRun {
   prompt_version: string;
   specialties: string[];
   error: string;
+  patient_summary?: { en: string; sw: string; lg: string };
+  summary_status?: string;
+  released_by_name?: string | null;
+  released_at?: string | null;
   items: ApiBriefItem[];
   interactions?: Array<ApiBriefInteraction | string>;
   overdue_checks?: Array<ApiBriefOverdueCheck | string>;
@@ -269,6 +277,10 @@ export interface ApiVisit {
   visit_date: string;
   notes: string;
   source: string;
+  patient_summary?: { en: string; sw: string; lg: string };
+  summary_status?: string;
+  released_by_name?: string | null;
+  released_at?: string | null;
   clinic: { id: string; name: string } | null;
   attachments: ApiAttachment[];
   sections: ApiSection[];

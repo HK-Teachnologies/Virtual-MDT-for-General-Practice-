@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import BriefSummaryGate from '../../../components/BriefSummaryGate';
 import CaptureForm from '../../../components/CaptureForm';
 import FollowUpThread from '../../../components/FollowUpThread';
 import PatientDetails from '../../../components/PatientDetails';
@@ -367,13 +368,18 @@ export default function PatientRecord() {
             }}
           />
         ) : (
-          <MdtBriefView
-            key={briefRunId ?? 'brief'}
-            brief={brief}
-            onSend={(items) => setSending(items)}
-            persistItem={persistSignOff}
-            token={token}
-          />
+          <>
+            <MdtBriefView
+              key={briefRunId ?? 'brief'}
+              brief={brief}
+              onSend={(items) => setSending(items)}
+              persistItem={persistSignOff}
+              token={token}
+            />
+            {briefRunId && token && (
+              <BriefSummaryGate runId={briefRunId} token={token} />
+            )}
+          </>
         )}
       </section>
     </div>

@@ -220,6 +220,70 @@ export async function updateVisit(
   return (await res.json()) as ApiVisit;
 }
 
+export async function updateVisitSummary(
+  token: string,
+  visitId: string,
+  data: { en: string; sw: string; lg: string },
+): Promise<ApiVisit> {
+  const res = await fetch(`${API_BASE}/api/patients/visits/${visitId}/summary`, {
+    method: 'PATCH',
+    headers: authHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiVisit;
+}
+
+export async function releaseVisitSummary(
+  token: string,
+  visitId: string,
+): Promise<ApiVisit> {
+  const res = await fetch(`${API_BASE}/api/patients/visits/${visitId}/release`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiVisit;
+}
+
+export async function prepareBriefSummary(
+  token: string,
+  runId: string,
+): Promise<{ queued: boolean; run: ApiBriefRun }> {
+  const res = await fetch(`${API_BASE}/api/mdt/runs/${runId}/patient-summary`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as { queued: boolean; run: ApiBriefRun };
+}
+
+export async function updateBriefSummary(
+  token: string,
+  runId: string,
+  data: { en: string; sw: string; lg: string },
+): Promise<ApiBriefRun> {
+  const res = await fetch(`${API_BASE}/api/mdt/runs/${runId}/patient-summary`, {
+    method: 'PATCH',
+    headers: authHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiBriefRun;
+}
+
+export async function releaseBriefSummary(
+  token: string,
+  runId: string,
+): Promise<ApiBriefRun> {
+  const res = await fetch(`${API_BASE}/api/mdt/runs/${runId}/patient-summary/release`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiBriefRun;
+}
+
 export async function updateTranscription(
   token: string,
   attachmentId: string,

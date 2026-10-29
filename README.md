@@ -88,6 +88,27 @@ Admins manage the routing under Admin → Specialties (e.g. HIV care,
 Cardiology, Pharmacy) and can delete a patient record in full (visits, files,
 vectors, briefs, reviews, login codes) from the record page.
 
+## Patient portal and clinician release
+
+AI-written text reaches patients only through a clinician release gate —
+every summary starts as `draft` and the portal serves `released` ones:
+
+1. **Visit summaries** — Recording a visit drafts a plain-language line in
+   English, Kiswahili, and Luganda (decided items only: tests ordered,
+   medicines continued, return date — never suspected or ruled-out
+   conditions). Regenerating a released summary returns it to draft.
+2. **Review and release** — On the patient record, each visit card shows its
+   draft summary in English with the Kiswahili and Luganda versions one tap
+   away. The doctor edits any language, then taps **Release to patient**; the
+   portal labels it `Reviewed and shared by Dr. [name] on [date]`.
+3. **Overall message** — After signing off the brief, the doctor taps
+   **Prepare patient summary**: the worker drafts the overall message from
+   approved/edited points only (suggested and rejected points, interactions,
+   and overdue checks are never included), for the same edit-and-release.
+4. **Portal** — Patients sign in with a one-time code and see only released
+   text. Anything still in draft shows `Your doctor is preparing your
+   summary.` Reading the portal never generates or publishes anything.
+
 ## Tech stack
 
 | Layer    | Technology                                  |
@@ -170,6 +191,7 @@ Backend settings come from `deployment/docker-compose/.env` (see `.env.example`)
 ## Safety and scope
 
 - Clinician-facing only; questions and flagged concerns, not verdicts.
+- Patients only ever see text a clinician has reviewed and released.
 - Every point carries an evidence-source badge (MoH guideline / patient record /
   clinical reasoning) and links to its cited guideline page; the agent's
   self-check removes unsupported claims and keeps an audit of what it removed.

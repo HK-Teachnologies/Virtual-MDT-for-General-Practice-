@@ -129,10 +129,31 @@ export default function Guide() {
           their record but not change it.
         </p>
         <p>
-          Each visit automatically gets a plain-language summary in English, Kiswahili,
-          and Luganda — no review needs to run first. Doctors can also send follow-up
-          questions from the patient record, which the patient answers by text or
-          voice note in the portal.
+          Each visit automatically gets a draft plain-language summary in English,
+          Kiswahili, and Luganda — no review needs to run first. Patients only ever
+          see text a clinician has reviewed and released; anything still in draft
+          shows <strong>Your doctor is preparing your summary.</strong>
+        </p>
+      </Step>
+
+      <Step n="9" title="Release summaries to the patient">
+        <p>
+          On the patient record, every visit card carries a <strong>Patient
+          summary</strong> panel: read the draft in English, open the Kiswahili and
+          Luganda versions, edit any language, then tap <strong>Release to
+          patient</strong>. The portal labels it <strong>Reviewed and shared by Dr.
+          [your name] on [date]</strong>. Editing or regenerating a released summary
+          returns it to draft.
+        </p>
+        <p>
+          After signing off the brief, tap <strong>Prepare patient summary</strong>
+          below it: the overall message is drafted from approved and edited points
+          only — suggested and rejected points, interactions, and overdue checks are
+          never included — for the same edit-and-release.
+        </p>
+        <p>
+          Doctors can also send follow-up questions from the patient record,
+          which the patient answers by text or voice note in the portal.
         </p>
       </Step>
 
