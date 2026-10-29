@@ -85,3 +85,54 @@ def test_patient_flow(client: TestClient, tmp_path, monkeypatch):
 
     anon = client.get("/api/patients")
     assert anon.status_code == 401
+
+
+def test_patient_details_and_measurements_editable(client: TestClient):
+    headers = _headers(client)
+    created = client.post(
+        "/api/patients",
+        json={
+            "full_name": "Measure Patient",
+            "phone": "+256700000201",
+            "weight_kg": 68.5,
+            "height_cm": 172,
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["weight_kg"] == 68.5
+    assert created.json()["height_cm"] == 172
+    patient_id = created.json()["id"]
+
+    # Nonsense measurements are rejected on create and on edit.
+    bad = client.post(
+        "/api/patients",
+        json={"full_name": "Bad Measure", "weight_kg": -5},
+        headers=headers,
+    )
+    assert bad.status_code == 400, bad.text
+
+    patched = client.patch(
+        f"/api/patients/{patient_id}",
+        json={"weight_kg": 70.0, "district": "Mbarara"},
+        headers=headers,
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["weight_kg"] == 70.0
+    assert patched.json()["height_cm"] == 172
+    assert patched.json()["district"] == "Mbarara"
+
+    bad_patch = client.patch(
+        f"/api/patients/{patient_id}", json={"height_cm": 0}, headers=headers
+    )
+    assert bad_patch.status_code == 400, bad_patch.text
+
+    missing = client.patch(
+        "/api/patients/00000000-0000-0000-0000-000000000000",
+        json={"weight_kg": 70},
+        headers=headers,
+    )
+    assert missing.status_code == 404
+
+    anon = client.patch(f"/api/patients/{patient_id}", json={"weight_kg": 70})
+    assert anon.status_code == 401

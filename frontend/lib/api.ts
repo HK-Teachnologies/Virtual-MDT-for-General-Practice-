@@ -151,6 +151,20 @@ export async function getOpenReviews(token: string, patientId: string): Promise<
   return (await res.json()) as ApiReview[];
 }
 
+export async function updatePatient(
+  token: string,
+  patientId: string,
+  data: Record<string, string | number | null>,
+): Promise<ApiPatient> {
+  const res = await fetch(`${API_BASE}/api/patients/${patientId}`, {
+    method: 'PATCH',
+    headers: authHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiPatient;
+}
+
 export async function deletePatient(token: string, patientId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/patients/${patientId}`, {
     method: 'DELETE',

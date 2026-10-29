@@ -77,3 +77,27 @@ Supportive counselling given, sleep hygiene discussed.
 Mood still low, missing clinic appointments. PHQ-2 score elevated. Discussed
 referral for mental health review; patient agrees. Continue ART, follow up
 in 2 weeks with mental health brief attached.
+
+---
+
+## Patient D — pregnancy with hypertension and malaria (synthetic)
+
+Register: Full name `Demo Patient D`, phone `+256700000104`,
+email `demo-d@example.com`, DOB `1992-05-17`, sex Female,
+district `Mbarara`, area of residence (not recorded).
+
+Known conditions: HIV (on ART, TLD), 28 weeks pregnant.
+Medications: Tenofovir/lamivudine/dolutegravir daily.
+
+### Visit 1 — 2026-09-20 — ANC, 24 weeks
+BP 118/74, Hb 12.1 g/dL. ART adherence good, viral load suppressed in July.
+IPTp-SP given, ITN use confirmed. Return in 4 weeks.
+
+### Visit 2 — today — headache, raised BP, fever
+28 weeks gestation. Headache for 3 days, BP 148/96 repeat 146/94, urine
+protein positive. Fever 38.2C, malaria RDT positive. AL prescribed,
+paracetamol given. Pre-eclampsia cannot be ruled out; referral to district
+hospital discussed, patient asks to stay local tonight. MDT review requested.
+
+Expect the brief to involve Maternal health, HIV care and Pharmacy, with an
+urgent pre-eclampsia flag.

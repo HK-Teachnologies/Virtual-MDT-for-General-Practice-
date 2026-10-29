@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import CaptureForm from '../../../components/CaptureForm';
+import PatientDetails from '../../../components/PatientDetails';
 import MdtBriefView from '../../../components/MdtBriefView';
 import ReviewSendDialog from '../../../components/ReviewSendDialog';
 import VisitCard from '../../../components/VisitCard';
@@ -276,6 +277,8 @@ export default function PatientRecord() {
         </div>
       )}
       {deleteError && <p className="error">{deleteError}</p>}
+
+      <PatientDetails patient={patient} token={token} onSaved={setPatient} />
 
       <section className="panel">
         <h2>Visit timeline</h2>

@@ -95,26 +95,8 @@ vectors, briefs, reviews, login codes) from the record page.
 | Frontend | Next.js (React)                             |
 | Backend  | FastAPI (Python)                            |
 | Database | PostgreSQL (pgvector-enabled for retrieval) |
-| AI       | Meta Model API: Muse Spark (multimodal + agent), Muse Voice Transcribe; self-hosted Muse Spark Open option |
+| AI       | Meta Model API: Muse Spark (multimodal + agent), Muse Voice Transcribe |
 | Deploy   | Docker Compose + Caddy                      |
-
-## Running on Muse Spark Open
-
-The default agent model is Meta's hosted Muse Spark (`LLM_MODEL=openai/muse-spark-1.3`
-via `LLM_API_BASE=https://api.meta.ai/v1`). To run the open-weight sibling instead,
-point LiteLLM at an OpenAI-compatible endpoint serving `meta-models/muse-spark-open-1026`
-(Baseten or Modal), keeping everything else identical:
-
-```env
-LLM_PROVIDER=litellm
-LLM_API_BASE=<your Baseten or Modal OpenAI-compatible base URL>
-LLM_API_KEY=<your Baseten or Modal API key>
-LLM_MODEL=openai/meta-models/muse-spark-open-1026
-LLM_TRANSCRIBE_MODEL=muse-voice-transcribe-1.0
-```
-
-Status: configured but **not yet verified end to end** — the hosted Muse Spark path is
-the verified one. After one brief runs cleanly on the open model, confirm here.
 
 ## Repo layout
 
@@ -192,8 +174,7 @@ Backend settings come from `deployment/docker-compose/.env` (see `.env.example`)
   clinical reasoning) and links to its cited guideline page; the agent's
   self-check removes unsupported claims and keeps an audit of what it removed.
 - Synthetic data only during the hackathon.
-- Future deployment must follow Uganda's Data Protection and Privacy Act, 2019;
-  the self-hosted open-weight option keeps data in-country.
+- Future deployment must follow Uganda's Data Protection and Privacy Act, 2019.
 
 ## Roadmap
 

@@ -70,6 +70,9 @@ export default function ReviewsInbox() {
   if (authLoading || !user) return <p>Checking sign-in…</p>;
 
   const shown = tab === 'inbox' ? inbox : requested;
+  const open = shown?.filter((r) => r.status !== 'closed') ?? null;
+  const closed = shown?.filter((r) => r.status === 'closed') ?? null;
+  const mine = tab === 'requested';
 
   return (
     <div>
@@ -80,26 +83,34 @@ export default function ReviewsInbox() {
           type="button"
           onClick={() => setTab('inbox')}
         >
-          Assigned to me{inbox ? ` (${inbox.length})` : ''}
+          Assigned to me{inbox ? ` (${inbox.filter((r) => r.status !== 'closed').length})` : ''}
         </button>
         <button
           className={tab === 'requested' ? 'btn btn-primary' : 'btn'}
           type="button"
           onClick={() => setTab('requested')}
         >
-          Requested by me{requested ? ` (${requested.length})` : ''}
+          Requested by me{requested ? ` (${requested.filter((r) => r.status !== 'closed').length})` : ''}
         </button>
       </div>
-      {!shown ? (
+      {!open ? (
         <p>Loading reviews…</p>
-      ) : shown.length === 0 ? (
+      ) : open.length === 0 ? (
         <p className="muted">
           {tab === 'inbox'
-            ? 'No reviews assigned to you yet.'
-            : 'You have not requested any reviews yet. Open a patient record to send one.'}
+            ? 'No open reviews assigned to you.'
+            : 'You have no open requested reviews. Open a patient record to send one.'}
         </p>
       ) : (
-        shown.map((r) => <ReviewCard key={r.id} review={r} mine={tab === 'requested'} />)
+        open.map((r) => <ReviewCard key={r.id} review={r} mine={mine} />)
+      )}
+      {closed && closed.length > 0 && (
+        <details className="panel">
+          <summary>Closed ({closed.length})</summary>
+          {closed.map((r) => (
+            <ReviewCard key={r.id} review={r} mine={mine} />
+          ))}
+        </details>
       )}
     </div>
   );

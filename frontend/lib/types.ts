@@ -250,6 +250,8 @@ export interface ApiPatient {
   email: string | null;
   district: string | null;
   address: string | null;
+  weight_kg: number | null;
+  height_cm: number | null;
   created_at: string;
   visits: ApiVisit[];
   visit_count: number;

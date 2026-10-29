@@ -13,6 +13,23 @@ class PatientCreate(BaseModel):
     email: EmailStr | None = None
     district: str | None = None
     address: str | None = None
+    weight_kg: float | None = None
+    height_cm: float | None = None
+
+
+class PatientUpdate(BaseModel):
+    """Staff edit of patient details and optional measurements. Only
+    provided fields change; measurements must be positive when given."""
+
+    full_name: str | None = None
+    date_of_birth: date | None = None
+    sex: str | None = None
+    phone: str | None = None
+    email: EmailStr | None = None
+    district: str | None = None
+    address: str | None = None
+    weight_kg: float | None = None
+    height_cm: float | None = None
 
 
 class AttachmentRead(BaseModel):
@@ -80,6 +97,8 @@ class PatientRead(BaseModel):
     email: EmailStr | None = None
     district: str | None = None
     address: str | None = None
+    weight_kg: float | None = None
+    height_cm: float | None = None
     created_at: datetime
     visits: list[VisitRead] = []
     # The list endpoint omits full visits; this carries the count instead.

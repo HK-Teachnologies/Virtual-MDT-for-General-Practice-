@@ -16,6 +16,7 @@ from app.patients.models import SECTION_TYPES, Attachment, Patient, Visit, Visit
 from app.patients.schemas import (
     PatientCreate,
     PatientRead,
+    PatientUpdate,
     SectionCreate,
     SectionRead,
     SectionUpdate,
@@ -59,6 +60,7 @@ def create_patient(
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    _check_measurements(data.weight_kg, data.height_cm)
     patient = Patient(
         full_name=data.full_name,
         date_of_birth=data.date_of_birth,
@@ -67,6 +69,8 @@ def create_patient(
         email=data.email,
         district=data.district,
         address=data.address,
+        weight_kg=data.weight_kg,
+        height_cm=data.height_cm,
         created_by=current.id,
     )
     db.add(patient)
@@ -135,6 +139,42 @@ def read_patient(
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    return load_patient_detail(db, patient_id)
+
+
+def _check_measurements(weight_kg: float | None, height_cm: float | None) -> None:
+    for label, value, lo, hi in (
+        ("weight_kg", weight_kg, 0, 500),
+        ("height_cm", height_cm, 0, 300),
+    ):
+        if value is not None and not (lo < value <= hi):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{label} must be between {lo} and {hi} (or omitted)",
+            )
+
+
+@router.patch("/{patient_id}", response_model=PatientRead)
+def update_patient(
+    patient_id: str,
+    data: PatientUpdate,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Staff edit of patient details and optional measurements."""
+    patient = db.get(Patient, patient_id)
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    patch = data.model_dump(exclude_unset=True)
+    _check_measurements(patch.get("weight_kg"), patch.get("height_cm"))
+    for field, value in patch.items():
+        setattr(patient, field, value)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Phone or email already registered")
+    db.refresh(patient)
     return load_patient_detail(db, patient_id)
 
 
