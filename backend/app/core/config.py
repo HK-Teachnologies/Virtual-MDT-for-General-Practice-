@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     smtp_from: str = "Virtual MDT <noreply@example.com>"
     otp_expire_minutes: int = 10
     otp_max_attempts: int = 5
+    # Log OTP codes server-side (dev/demo use made-up addresses that never
+    # receive mail). Set OTP_LOG_CODE=false in production to turn it off.
+    otp_log_code: bool = True
     secret_key: str = "dev-only-change-me"
     access_token_expire_minutes: int = 60 * 24
 

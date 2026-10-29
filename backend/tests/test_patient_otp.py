@@ -27,6 +27,32 @@ def _make_patient(client: TestClient, tag: str) -> str:
     return r.json()["id"]
 
 
+def test_otp_code_logged_for_dev_lookup(client: TestClient, monkeypatch, caplog):
+    """The code is logged server-side so made-up demo addresses can still
+    sign in (gated by OTP_LOG_CODE)."""
+    import logging
+
+    from app.core.config import settings
+
+    monkeypatch.setattr("secrets.randbelow", lambda n: 643590)
+    monkeypatch.setattr(settings, "otp_log_code", True)
+    _make_patient(client, "999999")
+    with caplog.at_level(logging.INFO, logger="app.patient_auth.routers"):
+        sent = client.post(
+            "/api/patient-auth/request", json={"identifier": "otp-999999@example.com"}
+        )
+    assert sent.status_code == 200
+    assert "OTP for otp-999999@example.com: 743590" in caplog.text
+
+    monkeypatch.setattr(settings, "otp_log_code", False)
+    with caplog.at_level(logging.INFO, logger="app.patient_auth.routers"):
+        caplog.clear()
+        client.post(
+            "/api/patient-auth/request", json={"identifier": "otp-999999@example.com"}
+        )
+    assert "743590" not in caplog.text
+
+
 def test_otp_flow(client: TestClient, monkeypatch):
     # Fixed code: randbelow(900000) -> 643590, so the code is "743590".
     monkeypatch.setattr("secrets.randbelow", lambda n: 643590)

@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import logging
 import secrets
 import smtplib
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,8 @@ from app.patients.schemas import PatientRead
 
 router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/patient-auth/verify")
 ALGORITHM = "HS256"
 
@@ -30,9 +33,15 @@ def _hash_code(code: str) -> str:
 
 
 def _send_otp_email(to_email: str, code: str) -> None:
-    """Email the code, or log it when SMTP is not configured (dev/demo)."""
+    """Email the code; always log it too (dev/demo use made-up addresses).
+
+    The log line is gated by OTP_LOG_CODE (default on) so production can
+    turn it off; codes are short-lived either way.
+    """
+    if settings.otp_log_code:
+        logger.info("OTP for %s: %s", to_email, code)
     if not settings.smtp_host:
-        print(f"OTP for {to_email}: {code} (SMTP not configured - dev mode)", flush=True)
+        logger.info("OTP email skipped (SMTP not configured - dev mode)")
         return
     message = EmailMessage()
     message["From"] = settings.smtp_from
@@ -50,7 +59,7 @@ def _send_otp_email(to_email: str, code: str) -> None:
                 smtp.login(settings.smtp_user, settings.smtp_password)
             smtp.send_message(message)
     except Exception as exc:
-        print(f"OTP email to {to_email} failed ({exc}) - code was: {code}", flush=True)
+        logger.warning("OTP email to %s failed (%s) - code was: %s", to_email, exc, code)
 
 
 def _find_patient(db: Session, identifier: str):

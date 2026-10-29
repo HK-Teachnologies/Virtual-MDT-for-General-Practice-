@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -32,6 +33,10 @@ def run_migrations() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     run_migrations()
+    # alembic.ini pins the root logger to WARN; the backend logs at INFO
+    # (OTP codes, brief guideline tags, ...), so restore INFO after
+    # migrations. The console handler from alembic.ini stays in place.
+    logging.getLogger().setLevel(logging.INFO)
     yield
 
 

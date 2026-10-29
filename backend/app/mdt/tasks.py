@@ -44,6 +44,10 @@ celery_app.conf.update(
     task_always_eager=settings.celery_task_always_eager,
     task_eager_propagates=True,
     task_store_eager_result=True,
+    # Never let Celery reconfigure logging: its dictConfig disables every
+    # existing logger (disable_existing_loggers=True), which silently
+    # blackholes backend log lines such as the dev-mode OTP log.
+    worker_hijack_root_logger=False,
 )
 
 
