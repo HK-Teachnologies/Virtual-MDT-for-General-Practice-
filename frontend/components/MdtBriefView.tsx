@@ -1,17 +1,61 @@
 'use client';
 
 import { useState } from 'react';
+import { API_BASE } from '../lib/api';
 import { interactionLine, overdueCheckLine, sourceLabel } from '../lib/sources';
-import type { BriefItem, MdtBrief } from '../lib/types';
+import type { BriefItem, CitedLabel, MdtBrief } from '../lib/types';
+
+function CiteChips({ cites, token }: { cites: CitedLabel[]; token: string | null }) {
+  const [error, setError] = useState(false);
+  if (cites.length === 0) return null;
+  async function openCite(cite: CitedLabel) {
+    setError(false);
+    if (!token || !cite.doc_id) {
+      setError(true);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/mdt/guidelines/${cite.doc_id}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        setError(true);
+        return;
+      }
+      const url = URL.createObjectURL(await res.blob());
+      window.open(`${url}#page=${cite.page ?? 1}`, '_blank', 'noopener');
+    } catch {
+      setError(true);
+    }
+  }
+  return (
+    <p className="cite-chips">
+      {cites.map((c, n) => (
+        <button
+          key={n}
+          className="link-btn cite-chip"
+          type="button"
+          title={c.doc_id ? `Open ${c.label} in the guideline PDF` : c.label}
+          onClick={() => openCite(c)}
+        >
+          📄 {c.label}
+        </button>
+      ))}
+      {error && <span className="error"> Could not open the guideline file.</span>}
+    </p>
+  );
+}
 
 export default function MdtBriefView({
   brief,
   onSend,
   persistItem,
+  token,
 }: {
   brief: MdtBrief;
   onSend?: (items: BriefItem[]) => void;
   persistItem?: (id: string, status: BriefItem['status'], editedText?: string) => Promise<void>;
+  token?: string | null;
 }) {
   const [items, setItems] = useState<BriefItem[]>(brief.items);
   const [editing, setEditing] = useState<string | null>(null);
@@ -138,6 +182,7 @@ export default function MdtBriefView({
                 </p>
               )}
               <p className="citation">{item.citation}</p>
+              <CiteChips cites={item.cited_labels ?? []} token={token ?? null} />
               <div className="row">
                 <button
                   className="btn btn-primary"
@@ -179,6 +224,7 @@ export default function MdtBriefView({
                   {x.concern}{' '}
                   {badge && <span className="badge">{badge}</span>}
                   {x.citation && <p className="citation">{x.citation}</p>}
+                  <CiteChips cites={x.cited_labels ?? []} token={token ?? null} />
                 </li>
               );
             })}
@@ -215,6 +261,7 @@ export default function MdtBriefView({
                   {x.last_done && <span className="muted"> — last done: {x.last_done}</span>}{' '}
                   {badge && <span className="badge">{badge}</span>}
                   {x.citation && <p className="citation">{x.citation}</p>}
+                  <CiteChips cites={x.cited_labels ?? []} token={token ?? null} />
                 </li>
               );
             })}

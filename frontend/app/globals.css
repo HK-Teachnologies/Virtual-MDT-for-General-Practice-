@@ -234,6 +234,17 @@ a.panel {
   color: #8f2f26;
 }
 
+.cite-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 4px 0 0;
+}
+
+.cite-chip {
+  font-size: 0.8rem;
+}
+
 .tabs {
   display: flex;
   gap: 8px;

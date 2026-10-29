@@ -29,7 +29,7 @@ import type {
   MdtBrief,
   RemovedPoint,
 } from '../../../lib/types';
-import { toInteraction, toOverdueCheck, toRemovedPanelPoint } from '../../../lib/sources';
+import { toCitedLabels, toInteraction, toOverdueCheck, toRemovedPanelPoint } from '../../../lib/sources';
 
 function toCertainty(value: string): Certainty {
   return value === 'high' || value === 'moderate' || value === 'low' ? value : 'low';
@@ -57,6 +57,7 @@ function runToBrief(patientId: string, run: ApiBriefRun): MdtBrief {
       question: i.question ?? '',
       urgent: i.urgent ?? false,
       selfcheck_reason: i.selfcheck_reason ?? '',
+      cited_labels: toCitedLabels(i.cited_labels),
     };
     if (status === 'removed') {
       removed.push({
@@ -363,6 +364,7 @@ export default function PatientRecord() {
             brief={brief}
             onSend={(items) => setSending(items)}
             persistItem={persistSignOff}
+            token={token}
           />
         )}
       </section>

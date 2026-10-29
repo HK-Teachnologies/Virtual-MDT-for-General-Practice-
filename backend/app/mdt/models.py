@@ -92,6 +92,9 @@ class BriefItem(Base):
     question: Mapped[str] = mapped_column(Text, default="")
     urgent: Mapped[bool] = mapped_column(default=False)
     selfcheck_reason: Mapped[str] = mapped_column(Text, default="")
+    # Guideline tags this point cited, validated against the retrieved
+    # evidence: [{label, doc_id, page}]. Shown (and linked) in the UI.
+    cited_labels: Mapped[list] = mapped_column(JSON, default=list)
 
 
 class Transcription(Base):
@@ -146,6 +149,10 @@ class GuidelineChunk(Base):
     chunk_index: Mapped[int] = mapped_column(default=0)
     text: Mapped[str] = mapped_column(Text)
     embedding: Mapped[list] = mapped_column(Embedding)
+    # 1-based source pages this chunk was cut from, so brief citations
+    # can name (and link to) the exact page. Null for legacy chunks.
+    page_start: Mapped[int | None] = mapped_column(nullable=True)
+    page_end: Mapped[int | None] = mapped_column(nullable=True)
 
 
 class PatientChunk(Base):

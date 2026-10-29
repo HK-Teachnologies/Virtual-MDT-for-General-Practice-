@@ -85,6 +85,7 @@ const DEMO_BRIEF: MdtBrief = {
       question: 'Does this patient need TB screening today?',
       urgent: true,
       selfcheck_reason: '',
+      cited_labels: [],
     },
     {
       id: 'pharm-1',
@@ -98,6 +99,7 @@ const DEMO_BRIEF: MdtBrief = {
       question: '',
       urgent: false,
       selfcheck_reason: '',
+      cited_labels: [],
     },
     {
       id: 'endo-1',
@@ -111,6 +113,7 @@ const DEMO_BRIEF: MdtBrief = {
       question: '',
       urgent: false,
       selfcheck_reason: '',
+      cited_labels: [],
     },
     {
       id: 'hiv-1',
@@ -124,6 +127,7 @@ const DEMO_BRIEF: MdtBrief = {
       question: '',
       urgent: false,
       selfcheck_reason: '',
+      cited_labels: [],
     },
   ],
   interactions: [
@@ -132,6 +136,7 @@ const DEMO_BRIEF: MdtBrief = {
       concern: 'Rifampicin (if TB treatment starts) reduces dolutegravir levels — adjust dosing per guideline.',
       citation: 'Uganda HIV treatment guidelines (2022)',
       source_type: 'guideline',
+      cited_labels: [],
     },
   ],
   overdueChecks: [
@@ -140,12 +145,14 @@ const DEMO_BRIEF: MdtBrief = {
       last_done: 'not on record',
       citation: 'Uganda Clinical Guidelines (2023)',
       source_type: 'guideline',
+      cited_labels: [],
     },
     {
       check: 'Annual diabetic foot and eye screening',
       last_done: 'due',
       citation: 'Uganda Clinical Guidelines (2023)',
       source_type: 'guideline',
+      cited_labels: [],
     },
   ],
   removed: [],
@@ -170,6 +177,7 @@ export function mockBrief(patientId: string): MdtBrief {
         question: '',
         urgent: false,
         selfcheck_reason: '',
+      cited_labels: [],
       },
       {
         id: 'pharm-1',
@@ -182,6 +190,7 @@ export function mockBrief(patientId: string): MdtBrief {
         question: 'Can you confirm the current medication list?',
         urgent: false,
         selfcheck_reason: '',
+      cited_labels: [],
       },
     ],
     interactions: [],
@@ -191,6 +200,7 @@ export function mockBrief(patientId: string): MdtBrief {
         last_done: 'not on record',
         citation: '',
         source_type: '',
+        cited_labels: [],
       },
     ],
     removed: [],

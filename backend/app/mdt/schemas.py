@@ -19,6 +19,7 @@ class BriefItemRead(BaseModel):
     question: str = ""
     urgent: bool = False
     selfcheck_reason: str = ""
+    cited_labels: list[dict] = []
 
 
 class BriefRunRead(BaseModel):

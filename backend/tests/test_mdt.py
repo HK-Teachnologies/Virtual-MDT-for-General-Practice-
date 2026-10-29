@@ -330,16 +330,20 @@ def test_guidelines_admin_only(client: TestClient):
     assert any(d["title"] == "HIV quick ref" for d in r.json())
 
 
-def _minimal_pdf(text: str) -> bytes:
-    stream = f"BT /F1 24 Tf 100 700 Td ({text}) Tj ET".encode()
+def _minimal_pdf(text: str, pages: int = 1) -> bytes:
+    kids = " ".join(f"{3 + 2 * p} 0 R" for p in range(pages))
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-        b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-        b"<< /Length " + str(len(stream)).encode() + b" >> stream\n" + stream + b"\nendstream",
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        f"<< /Type /Pages /Kids [{kids}] /Count {pages} >>".encode(),
     ]
+    for p in range(pages):
+        stream = f"BT /F1 24 Tf 100 700 Td ({text} p{p + 1}) Tj ET".encode()
+        objects += [
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            f"/Contents {4 + 2 * p} 0 R /Resources << /Font << /F1 {3 + 2 * pages} 0 R >> >> >>".encode(),
+            b"<< /Length " + str(len(stream)).encode() + b" >> stream\n" + stream + b"\nendstream",
+        ]
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
     pdf = b"%PDF-1.4\n"
     offsets = []
     for number, body in enumerate(objects, start=1):
@@ -397,6 +401,119 @@ def test_guideline_pdf_upload_and_retire(client: TestClient):
         headers={"Authorization": f"Bearer {admin}"},
     )
     assert r.status_code == 400, r.text
+
+
+def test_guideline_chunks_carry_page_numbers(client: TestClient):
+    """A two-page PDF indexes page by page: every chunk knows the source
+    page it was cut from, covering both pages."""
+    from app.mdt.models import GuidelineChunk
+
+    admin = admin_token(client)
+    r = client.post(
+        "/api/mdt/guidelines",
+        data={"title": "Two page guide", "version": "2024"},
+        files={"file": ("two.pdf", _minimal_pdf("Care protocol.", pages=2), "application/pdf")},
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["index_status"] == "ready"
+    with SessionLocal() as db:
+        chunks = (
+            db.query(GuidelineChunk)
+            .filter(GuidelineChunk.doc_id == r.json()["id"])
+            .order_by(GuidelineChunk.chunk_index)
+            .all()
+        )
+    assert len(chunks) >= 2
+    assert {c.page_start for c in chunks} == {1, 2}
+    assert all(c.page_start == c.page_end for c in chunks)
+    assert any("p1" in c.text for c in chunks if c.page_start == 1)
+    assert any("p2" in c.text for c in chunks if c.page_start == 2)
+    assert all(c.text.startswith("Two page guide (2024):") for c in chunks)
+
+
+def test_guideline_citation_must_match_retrieved_evidence(monkeypatch, client: TestClient):
+    """A guideline-sourced point citing a tag outside this run's evidence
+    is dropped with a reason; record-sourced points are unaffected."""
+    draft = {
+        "specialties": ["HIV care"],
+        "items": [
+            {
+                "specialty": "HIV care",
+                "concern": "Invented guideline point",
+                "question": "",
+                "citation": "[G99] Imaginary Guideline 2099, p. 1",
+                "source_type": "guideline",
+                "urgent": False,
+            },
+            {
+                "specialty": "HIV care",
+                "concern": "Record-based point",
+                "question": "",
+                "citation": "Visit notes on file",
+                "source_type": "patient_record",
+                "urgent": False,
+            },
+        ],
+        "interactions": [
+            {
+                "drugs": ["Drug A", "Drug B"],
+                "concern": "Invented interaction",
+                "citation": "[G98] Imaginary Guideline 2099, p. 2",
+                "source_type": "guideline",
+            }
+        ],
+        "overdue_checks": [],
+    }
+    _selfcheck_setup(
+        monkeypatch,
+        draft,
+        [
+            {"id": "item-0", "keep": True, "reason": "looks supported"},
+            {"id": "item-1", "keep": True, "reason": "supported"},
+            {"id": "int-0", "keep": True, "reason": "supported"},
+        ],
+    )
+    token = admin_token(client)
+    patient = _patient(client, token, "000008")
+    _visit(client, token, patient["id"])
+    r = client.post(
+        "/api/mdt/brief",
+        json={"patient_id": patient["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 202, r.text
+    run = r.json()
+    assert run["status"] == "ready", run
+    by_concern = {i["concern"]: i for i in run["items"]}
+    assert by_concern["Invented guideline point"]["status"] == "removed"
+    assert (
+        by_concern["Invented guideline point"]["selfcheck_reason"]
+        == "cited guideline not in retrieved evidence"
+    )
+    assert by_concern["Record-based point"]["status"] == "suggested"
+    assert by_concern["Record-based point"]["cited_labels"] == []
+    assert run["interactions"] == []
+    assert [rp["kind"] for rp in run["removed_points"]] == ["interaction"]
+    assert (
+        run["removed_points"][0]["reason"] == "cited guideline not in retrieved evidence"
+    )
+
+
+def test_validate_guideline_citation_unit():
+    from app.mdt.tasks import _validate_guideline_citation
+
+    tags = {
+        "G1": {"label": "Guide A, p. 3", "doc_id": "d1", "page": 3},
+        "G2": {"label": "Guide B, p. 7", "doc_id": "d2", "page": 7},
+    }
+    assert _validate_guideline_citation("[G1] Guide A, p. 3", tags) == [tags["G1"]]
+    assert _validate_guideline_citation("[G2] Guide B, p. 7 and [G1] Guide A, p. 3", tags) == [
+        tags["G2"],
+        tags["G1"],
+    ]
+    assert _validate_guideline_citation("[G9] Imaginary, p. 1", tags) == []
+    assert _validate_guideline_citation("Visit notes on file", tags) == []
 
 
 def test_guideline_indexing_batches_embeddings(monkeypatch, client: TestClient):

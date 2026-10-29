@@ -133,8 +133,9 @@ Backend settings come from `deployment/docker-compose/.env` (see `.env.example`)
 ## Safety and scope
 
 - Clinician-facing only; questions and flagged concerns, not verdicts.
-- Every point links to its guideline/study with a certainty level; the agent's
-  self-check removes unsupported claims.
+- Every point carries an evidence-source badge (MoH guideline / patient record /
+  clinical reasoning) and links to its cited guideline page; the agent's
+  self-check removes unsupported claims and keeps an audit of what it removed.
 - Synthetic data only during the hackathon.
 - Future deployment must follow Uganda's Data Protection and Privacy Act, 2019;
   the self-hosted open-weight option keeps data in-country.
@@ -148,6 +149,8 @@ Backend settings come from `deployment/docker-compose/.env` (see `.env.example`)
 - [x] Specialist reviews (specialty routing, email links, text/voice/photo
       responses, pending → responded → closed, no-duplicate gate)
 - [x] Guideline library (PDF upload, async indexing with retry, RAG citations)
+  - Guidelines uploaded before page-aware indexing need one **Reindex** (Admin →
+    Guidelines → Reindex) so brief citations carry verified page numbers.
 - [ ] Referral letter generation (bonus)
 - [ ] Patient follow-up in Luganda / Swahili / English (future, not in hackathon build)
 

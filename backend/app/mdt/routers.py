@@ -65,6 +65,7 @@ def _run_read(db: Session, run: BriefRun) -> BriefRunRead:
                 question=i.question or "",
                 urgent=bool(i.urgent),
                 selfcheck_reason=i.selfcheck_reason or "",
+                cited_labels=list(i.cited_labels or []),
             )
             for i in items
         ],
@@ -158,6 +159,7 @@ def sign_off_item(
         question=item.question or "",
         urgent=bool(item.urgent),
         selfcheck_reason=item.selfcheck_reason or "",
+        cited_labels=list(item.cited_labels or []),
     )
 
 

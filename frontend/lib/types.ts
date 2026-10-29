@@ -25,6 +25,12 @@ export interface Patient {
   visits: Visit[];
 }
 
+export interface CitedLabel {
+  label: string;
+  doc_id: string;
+  page: number | null;
+}
+
 export interface BriefItem {
   id: string;
   specialty: string;
@@ -36,6 +42,7 @@ export interface BriefItem {
   question: string;
   urgent: boolean;
   selfcheck_reason: string;
+  cited_labels: CitedLabel[];
 }
 
 export interface RemovedPoint {
@@ -50,6 +57,7 @@ export interface BriefInteraction {
   concern: string;
   citation: string;
   source_type: string;
+  cited_labels: CitedLabel[];
 }
 
 export interface BriefOverdueCheck {
@@ -57,6 +65,7 @@ export interface BriefOverdueCheck {
   last_done: string;
   citation: string;
   source_type: string;
+  cited_labels: CitedLabel[];
 }
 
 export interface MdtBrief {
@@ -81,6 +90,13 @@ export interface ApiBriefItem {
   question?: string;
   urgent?: boolean;
   selfcheck_reason?: string;
+  cited_labels?: ApiCitedLabel[];
+}
+
+export interface ApiCitedLabel {
+  label?: string;
+  doc_id?: string;
+  page?: number | null;
 }
 
 export interface ApiBriefInteraction {
@@ -88,6 +104,7 @@ export interface ApiBriefInteraction {
   concern?: string;
   citation?: string;
   source_type?: string;
+  cited_labels?: ApiCitedLabel[];
 }
 
 export interface ApiBriefOverdueCheck {
@@ -95,6 +112,7 @@ export interface ApiBriefOverdueCheck {
   last_done?: string;
   citation?: string;
   source_type?: string;
+  cited_labels?: ApiCitedLabel[];
 }
 
 export interface ApiBriefRun {

@@ -7,6 +7,7 @@ progress. In tests (CELERY_TASK_ALWAYS_EAGER=1) everything runs inline.
 
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -226,10 +227,11 @@ def embed_patient_chunks(patient_id: str) -> str:
         return f"{len(texts)} chunks"
 
 
-def extract_document_text(filename: str, raw: bytes) -> str:
-    """Readable text from a .txt, .md, or text-based .pdf upload.
+def extract_document_pages(filename: str, raw: bytes) -> list[tuple[int, str]]:
+    """Readable text per source page: [(1-based page number, text)].
 
-    Shared by guideline indexing and patient-record ingestion.
+    Blank pages are skipped but numbering follows the original document,
+    so chunk page ranges always match the file staff can download.
     Raises ValueError with a staff-facing message when there is nothing
     readable (e.g. scanned-image PDFs).
     """
@@ -247,17 +249,31 @@ def extract_document_text(filename: str, raw: bytes) -> str:
             except Exception:
                 text = ""
             if text:
-                pages.append(f"[page {number}]\n{text}")
+                pages.append((number, text))
         if not pages:
             raise ValueError(
                 "The PDF has no readable text (it may be scanned images). "
                 "Photograph key pages via Capture instead — those are read with vision."
             )
-        return "\n\n".join(pages)
+        return pages
     try:
-        return raw.decode("utf-8")
+        text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ValueError("File is not valid UTF-8 text") from exc
+    return [(1, text)]
+
+
+def extract_document_text(filename: str, raw: bytes) -> str:
+    """Readable text from a .txt, .md, or text-based .pdf upload.
+
+    Shared by guideline indexing and patient-record ingestion.
+    Raises ValueError with a staff-facing message when there is nothing
+    readable (e.g. scanned-image PDFs).
+    """
+    pages = extract_document_pages(filename, raw)
+    if filename.lower().endswith(".pdf"):
+        return "\n\n".join(f"[page {number}]\n{text}" for number, text in pages)
+    return pages[0][1]
 
 
 @celery_app.task(name="mdt.index_guideline")
@@ -276,30 +292,38 @@ def index_guideline(doc_id: str) -> str:
         db.commit()
         try:
             raw = Path(doc.stored_path).read_bytes()
-            text = extract_document_text(Path(doc.stored_path).name, raw)
-            if not text.strip():
+            pages = extract_document_pages(Path(doc.stored_path).name, raw)
+            if not "".join(text for _, text in pages).strip():
                 raise ValueError("File has no readable text")
             # Larger chunks than patient notes: guideline prose needs its
             # section context, and every chunk carries its source so brief
-            # citations can name the document.
-            bodies = [
-                f"{doc.title} ({doc.version or 'undated'}):\n{chunk}"
-                for chunk in chunk_text(text, size=2000)
-            ]
+            # citations can name the document. Chunking stays inside one
+            # source page, so each chunk knows its page range for citations.
+            prefix = f"{doc.title} ({doc.version or 'undated'}):\n"
+            bodies: list[tuple[str, int, int]] = []  # (text, page_start, page_end)
+            for number, text in pages:
+                for chunk in chunk_text(text, size=2000):
+                    bodies.append((f"{prefix}{chunk}", number, number))
+            if not bodies:
+                raise ValueError("File has no readable text")
             # Small CPU-friendly batches: one /embed call for a 1000+ page
             # document can otherwise outlast the model-server HTTP timeout
             # on a small box and fail the whole run.
             batch_size = max(1, min(settings.llm_embed_batch, 32))
             for start in range(0, len(bodies), batch_size):
                 batch = bodies[start : start + batch_size]
-                vectors = llm.embed(batch)
-                for offset, (body, vector) in enumerate(zip(batch, vectors)):
+                vectors = llm.embed([body for body, _, _ in batch])
+                for offset, ((body, page_start, page_end), vector) in enumerate(
+                    zip(batch, vectors)
+                ):
                     db.add(
                         GuidelineChunk(
                             doc_id=doc.id,
                             chunk_index=start + offset,
                             text=body,
                             embedding=vector,
+                            page_start=page_start,
+                            page_end=page_end,
                         )
                     )
                 db.commit()
@@ -348,6 +372,22 @@ def _normalize_overdue_check(raw: object) -> dict:
         "citation": str(point.get("citation", "")),
         "source_type": str(point.get("source_type", "")),
     }
+
+
+GUIDE_TAG_RE = re.compile(r"\[G(\d+)\]")
+
+
+def _validate_guideline_citation(citation: str, guide_tags: dict) -> list[dict]:
+    """Cited labels for the [Gn] tags in a point that exist in this run's
+    retrieved evidence. Empty when the point cites no retrieved excerpt —
+    the caller drops such guideline-sourced points."""
+    found = []
+    for number in GUIDE_TAG_RE.findall(citation or ""):
+        tag = f"G{number}"
+        entry = guide_tags.get(tag)
+        if entry is not None and entry not in found:
+            found.append(entry)
+    return found
 
 
 def _normalize_item(raw: object) -> dict:
@@ -403,11 +443,34 @@ def run_brief(self, run_id: str) -> str:
                 if chunk.id not in seen:
                     seen.add(chunk.id)
                     guides_unique.append(chunk)
+            # Guideline excerpts carry stable tags ([G1], [G2]...) with the
+            # document name and page, so the model can cite them exactly
+            # and the code can verify every citation afterwards.
+            guide_tags: dict[str, dict] = {}
+            guide_lines = []
+            for number, chunk in enumerate(guides_unique[:8], start=1):
+                tag = f"G{number}"
+                doc = db.get(GuidelineDoc, chunk.doc_id)
+                name = doc.title if doc else "Guideline"
+                if doc and doc.version and doc.version not in doc.title:
+                    name = f"{doc.title} ({doc.version})"
+                pages = ""
+                if chunk.page_start:
+                    pages = f", p. {chunk.page_start}"
+                    if chunk.page_end and chunk.page_end != chunk.page_start:
+                        pages += f"\u2013{chunk.page_end}"
+                label = f"{name}{pages}"
+                guide_tags[tag] = {
+                    "label": label,
+                    "doc_id": chunk.doc_id,
+                    "page": chunk.page_start,
+                }
+                guide_lines.append(f"[{tag}] {label}:\n{chunk.text}")
             evidence = "\n".join(
                 ["Relevant past history:"]
                 + [f"- {c.text}" for c in history_unique[:8]]
                 + ["Guideline excerpts:"]
-                + [f"- {c.text}" for c in guides_unique[:8]]
+                + guide_lines
             )
 
             _set_step(db, run, "drafting", "Drafting the brief")
@@ -479,6 +542,17 @@ def run_brief(self, run_id: str) -> str:
                     else "no verdict returned"
                 )
                 kept = isinstance(verdict, dict) and bool(verdict.get("keep"))
+                # A guideline-sourced point must cite a [Gn] tag from this
+                # run's evidence — otherwise the model invented the source.
+                cited: list[dict] = []
+                if entry["point"].get("source_type") == "guideline":
+                    cited = _validate_guideline_citation(
+                        entry["point"].get("citation", ""), guide_tags
+                    )
+                    if kept and not cited:
+                        kept = False
+                        reason = "cited guideline not in retrieved evidence"
+                entry["cited"] = cited
                 if not kept:
                     if entry["kind"] == "item":
                         db.add(
@@ -516,11 +590,14 @@ def run_brief(self, run_id: str) -> str:
                             source_type=entry["point"]["source_type"][:32],
                             question=entry["point"]["question"],
                             urgent=entry["point"]["urgent"],
+                            cited_labels=entry["cited"],
                         )
                     )
                 elif entry["kind"] == "interaction":
+                    entry["point"]["cited_labels"] = entry["cited"]
                     kept_interactions.append(entry["point"])
                 else:
+                    entry["point"]["cited_labels"] = entry["cited"]
                     kept_checks.append(entry["point"])
             run.specialties = [str(s) for s in draft.get("specialties", run.specialties or [])][:4]
             run.interactions = kept_interactions
