@@ -322,6 +322,33 @@ def _set_step(db, run: BriefRun, status: str, step: str) -> None:
     db.commit()
 
 
+def _normalize_interaction(raw: object) -> dict:
+    """Coerce one draft interaction to the object shape the UI renders."""
+    if isinstance(raw, str):
+        return {"drugs": [], "concern": raw, "citation": "", "source_type": ""}
+    point = raw if isinstance(raw, dict) else {}
+    drugs = point.get("drugs", [])
+    return {
+        "drugs": [str(d) for d in drugs] if isinstance(drugs, list) else [],
+        "concern": str(point.get("concern", "")),
+        "citation": str(point.get("citation", "")),
+        "source_type": str(point.get("source_type", "")),
+    }
+
+
+def _normalize_overdue_check(raw: object) -> dict:
+    """Coerce one draft overdue check to the object shape the UI renders."""
+    if isinstance(raw, str):
+        return {"check": raw, "last_done": "", "citation": "", "source_type": ""}
+    point = raw if isinstance(raw, dict) else {}
+    return {
+        "check": str(point.get("check", "")),
+        "last_done": str(point.get("last_done", "")),
+        "citation": str(point.get("citation", "")),
+        "source_type": str(point.get("source_type", "")),
+    }
+
+
 @celery_app.task(name="mdt.run_brief", bind=True)
 def run_brief(self, run_id: str) -> str:
     with SessionLocal() as db:
@@ -398,6 +425,14 @@ def run_brief(self, run_id: str) -> str:
                     )
                 )
             run.specialties = [str(s) for s in draft.get("specialties", run.specialties or [])][:4]
+            interactions = draft.get("interactions", [])
+            overdue_checks = draft.get("overdue_checks", [])
+            run.interactions = [
+                _normalize_interaction(p) for p in (interactions if isinstance(interactions, list) else [])
+            ]
+            run.overdue_checks = [
+                _normalize_overdue_check(p) for p in (overdue_checks if isinstance(overdue_checks, list) else [])
+            ]
             db.commit()
 
             _set_step(db, run, "ready", "Ready for clinician review")

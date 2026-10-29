@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { API_BASE } from '../lib/api';
+import { interactionLine, overdueCheckLine } from '../lib/sources';
 import type { ApiReview, ApiSpecialty, BriefItem, MdtBrief } from '../lib/types';
 
 export default function ReviewSendDialog({
@@ -95,8 +96,8 @@ export default function ReviewSendDialog({
               certainty: i.certainty,
               status: i.status,
             })),
-            interactions: brief.interactions,
-            overdue_checks: brief.overdueChecks,
+            interactions: brief.interactions.map(interactionLine),
+            overdue_checks: brief.overdueChecks.map(overdueCheckLine),
           },
         }),
       });

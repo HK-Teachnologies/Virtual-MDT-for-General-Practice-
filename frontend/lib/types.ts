@@ -34,12 +34,26 @@ export interface BriefItem {
   status: ItemStatus;
 }
 
+export interface BriefInteraction {
+  drugs: string[];
+  concern: string;
+  citation: string;
+  source_type: string;
+}
+
+export interface BriefOverdueCheck {
+  check: string;
+  last_done: string;
+  citation: string;
+  source_type: string;
+}
+
 export interface MdtBrief {
   patientId: string;
   specialties: string[];
   items: BriefItem[];
-  interactions: string[];
-  overdueChecks: string[];
+  interactions: BriefInteraction[];
+  overdueChecks: BriefOverdueCheck[];
   generatedAt: string;
 }
 
@@ -53,6 +67,20 @@ export interface ApiBriefItem {
   edited_text: string | null;
 }
 
+export interface ApiBriefInteraction {
+  drugs?: string[];
+  concern?: string;
+  citation?: string;
+  source_type?: string;
+}
+
+export interface ApiBriefOverdueCheck {
+  check?: string;
+  last_done?: string;
+  citation?: string;
+  source_type?: string;
+}
+
 export interface ApiBriefRun {
   id: string;
   patient_id: string;
@@ -61,6 +89,8 @@ export interface ApiBriefRun {
   specialties: string[];
   error: string;
   items: ApiBriefItem[];
+  interactions?: Array<ApiBriefInteraction | string>;
+  overdue_checks?: Array<ApiBriefOverdueCheck | string>;
 }
 
 // Shapes returned by the FastAPI backend.

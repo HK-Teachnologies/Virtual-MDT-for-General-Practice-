@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { interactionLine, overdueCheckLine, sourceLabel } from '../lib/sources';
 import type { BriefItem, MdtBrief } from '../lib/types';
 
 export default function MdtBriefView({
@@ -70,10 +71,10 @@ export default function MdtBriefView({
       ...approved.map((i) => `- [${i.specialty}] ${i.concern} (certainty: ${i.certainty}; ${i.citation})`),
       '',
       'Flagged interactions:',
-      ...brief.interactions.map((x) => `- ${x}`),
+      ...brief.interactions.map(interactionLine),
       '',
       'Overdue checks:',
-      ...brief.overdueChecks.map((x) => `- ${x}`),
+      ...brief.overdueChecks.map(overdueCheckLine),
     ];
     try {
       await navigator.clipboard.writeText(lines.join('\n'));
@@ -157,20 +158,41 @@ export default function MdtBriefView({
           <p className="muted">None flagged.</p>
         ) : (
           <ul>
-            {brief.interactions.map((x) => (
-              <li key={x}>{x}</li>
-            ))}
+            {brief.interactions.map((x, n) => {
+              const badge = sourceLabel(x.source_type);
+              return (
+                <li key={`${x.drugs.join('+')}-${n}`}>
+                  {x.drugs.length > 0 && <strong>{x.drugs.join(' + ')}</strong>}
+                  {x.drugs.length > 0 && ' — '}
+                  {x.concern}{' '}
+                  {badge && <span className="badge">{badge}</span>}
+                  {x.citation && <p className="citation">{x.citation}</p>}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
 
       <section>
         <h3>Overdue checks</h3>
-        <ul>
-          {brief.overdueChecks.map((x) => (
-            <li key={x}>{x}</li>
-          ))}
-        </ul>
+        {brief.overdueChecks.length === 0 ? (
+          <p className="muted">Nothing overdue.</p>
+        ) : (
+          <ul>
+            {brief.overdueChecks.map((x, n) => {
+              const badge = sourceLabel(x.source_type);
+              return (
+                <li key={`${x.check}-${n}`}>
+                  <strong>{x.check}</strong>
+                  {x.last_done && <span className="muted"> — last done: {x.last_done}</span>}{' '}
+                  {badge && <span className="badge">{badge}</span>}
+                  {x.citation && <p className="citation">{x.citation}</p>}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
     </div>
   );

@@ -54,6 +54,10 @@ class BriefRun(Base):
     model: Mapped[str] = mapped_column(String(255), default="")
     prompt_version: Mapped[str] = mapped_column(String(255), default="v1")
     specialties: Mapped[list] = mapped_column(JSON, default=list)
+    # Safety panels of the brief: drug interactions and overdue routine
+    # checks, as structured points (shapes in the draft prompt).
+    interactions: Mapped[list] = mapped_column(JSON, default=list)
+    overdue_checks: Mapped[list] = mapped_column(JSON, default=list)
     error: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(

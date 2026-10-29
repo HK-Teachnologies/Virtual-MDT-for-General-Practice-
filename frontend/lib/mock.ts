@@ -111,11 +111,26 @@ const DEMO_BRIEF: MdtBrief = {
     },
   ],
   interactions: [
-    'Rifampicin (if TB treatment starts) reduces dolutegravir levels — adjust dosing per guideline.',
+    {
+      drugs: ['Rifampicin', 'Dolutegravir'],
+      concern: 'Rifampicin (if TB treatment starts) reduces dolutegravir levels — adjust dosing per guideline.',
+      citation: 'Uganda HIV treatment guidelines (2022)',
+      source_type: 'guideline',
+    },
   ],
   overdueChecks: [
-    'Kidney function test (creatinine/eGFR) — overdue, needed before diabetes therapy change.',
-    'Annual diabetic foot and eye screening — due.',
+    {
+      check: 'Kidney function test (creatinine/eGFR)',
+      last_done: 'not on record',
+      citation: 'Uganda Clinical Guidelines (2023)',
+      source_type: 'guideline',
+    },
+    {
+      check: 'Annual diabetic foot and eye screening',
+      last_done: 'due',
+      citation: 'Uganda Clinical Guidelines (2023)',
+      source_type: 'guideline',
+    },
   ],
 };
 
@@ -145,6 +160,13 @@ export function mockBrief(patientId: string): MdtBrief {
       },
     ],
     interactions: [],
-    overdueChecks: ['Routine review of chronic-disease monitoring tests — confirm nothing is overdue.'],
+    overdueChecks: [
+      {
+        check: 'Routine review of chronic-disease monitoring tests',
+        last_done: 'not on record',
+        citation: '',
+        source_type: '',
+      },
+    ],
   };
 }

@@ -28,6 +28,7 @@ import type {
   ItemStatus,
   MdtBrief,
 } from '../../../lib/types';
+import { toInteraction, toOverdueCheck } from '../../../lib/sources';
 
 function toCertainty(value: string): Certainty {
   return value === 'high' || value === 'moderate' || value === 'low' ? value : 'low';
@@ -49,8 +50,8 @@ function runToBrief(patientId: string, run: ApiBriefRun): MdtBrief {
       certainty: toCertainty(i.certainty),
       status: toStatus(i.status),
     })),
-    interactions: [],
-    overdueChecks: [],
+    interactions: (run.interactions ?? []).map(toInteraction),
+    overdueChecks: (run.overdue_checks ?? []).map(toOverdueCheck),
     generatedAt: new Date().toISOString(),
   };
 }

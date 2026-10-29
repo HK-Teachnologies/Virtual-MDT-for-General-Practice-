@@ -33,27 +33,28 @@ def _litellm_kwargs() -> dict:
 # Deterministic canned outputs keyed by prompt kind (echo provider).
 _ECHO = {
     "plan": {
-        "specialties": ["HIV", "NCD"],
-        "queries": ["antiretroviral adherence", "blood pressure control"],
+        "specialties": ["HIV care", "Cardiology"],
+        "queries": ["antiretroviral therapy adherence", "management of hypertension in adults"],
+        "reasoning": "Echo plan.",
     },
     "draft": {
-        "specialties": ["HIV", "NCD"],
+        "specialties": ["HIV care", "Cardiology"],
         "items": [
-            {
-                "specialty": "HIV",
-                "concern": "Review ART adherence and recent symptoms against the recorded visits.",
-                "citation": "Visit notes on file",
-                "certainty": "low",
-            },
-            {
-                "specialty": "NCD",
-                "concern": "Check blood pressure control and diabetes follow-up per visit history.",
-                "citation": "Visit notes on file",
-                "certainty": "low",
-            },
+            {"specialty": "HIV care", "concern": "Review ART adherence against recorded visits.",
+             "question": "When was the last viral load?", "citation": "Visit notes on file",
+             "source_type": "patient_record", "urgent": False},
+            {"specialty": "Cardiology", "concern": "Blood pressure above target at recent visits.",
+             "question": "Has treatment been intensified?", "citation": "Visit notes on file",
+             "source_type": "patient_record", "urgent": False},
         ],
-        "interactions": [],
-        "overdue_checks": ["Confirm next review date with the clinician."],
+        "interactions": [
+            {"drugs": ["Drug A", "Drug B"], "concern": "Echo interaction for tests.",
+             "citation": "Visit notes on file", "source_type": "patient_record"},
+        ],
+        "overdue_checks": [
+            {"check": "Kidney function", "last_done": "not on record",
+             "citation": "Visit notes on file", "source_type": "patient_record"},
+        ],
     },
     "selfcheck": {"verdicts": [{"index": 0, "keep": True, "reason": "echo"}, {"index": 1, "keep": True, "reason": "echo"}]},
 }

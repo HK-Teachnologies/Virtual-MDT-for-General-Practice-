@@ -50,6 +50,8 @@ def _run_read(db: Session, run: BriefRun) -> BriefRunRead:
         error=run.error or "",
         created_at=run.created_at,
         completed_at=run.completed_at,
+        interactions=list(run.interactions or []),
+        overdue_checks=list(run.overdue_checks or []),
         items=[
             BriefItemRead(
                 id=i.id,

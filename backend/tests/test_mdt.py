@@ -77,6 +77,43 @@ def test_brief_flow_end_to_end(client: TestClient):
     assert len(r.json()) == 1
 
 
+def test_brief_saves_interactions_and_overdue_checks(client: TestClient):
+    """The safety panels persist: a finished run returns non-empty
+    structured interactions and overdue checks with the echo provider."""
+    token = admin_token(client)
+    patient = _patient(client, token, "000005")
+    _visit(client, token, patient["id"])
+
+    r = client.post(
+        "/api/mdt/brief",
+        json={"patient_id": patient["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 202, r.text
+    run = r.json()
+    assert run["status"] == "ready", run
+
+    assert len(run["interactions"]) >= 1
+    interaction = run["interactions"][0]
+    assert interaction["drugs"] == ["Drug A", "Drug B"]
+    assert interaction["concern"]
+    assert interaction["source_type"] == "patient_record"
+
+    assert len(run["overdue_checks"]) >= 1
+    check = run["overdue_checks"][0]
+    assert check["check"] == "Kidney function"
+    assert check["last_done"] == "not on record"
+    assert check["source_type"] == "patient_record"
+
+    # The GET endpoint returns the same panels.
+    r = client.get(
+        f"/api/mdt/runs/{run['id']}", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert r.status_code == 200, r.text
+    assert len(r.json()["interactions"]) >= 1
+    assert len(r.json()["overdue_checks"]) >= 1
+
+
 def test_brief_chunks_indexed(client: TestClient):
     token = admin_token(client)
     patient = _patient(client, token, "000002")

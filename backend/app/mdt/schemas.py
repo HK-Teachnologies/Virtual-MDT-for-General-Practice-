@@ -29,6 +29,8 @@ class BriefRunRead(BaseModel):
     created_at: datetime
     completed_at: datetime | None = None
     items: list[BriefItemRead] = []
+    interactions: list[dict] = []
+    overdue_checks: list[dict] = []
 
 
 class BriefItemUpdate(BaseModel):
