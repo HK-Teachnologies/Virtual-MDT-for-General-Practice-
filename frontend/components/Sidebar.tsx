@@ -61,6 +61,7 @@ export default function Sidebar() {
       <p className="side-label">Workspace</p>
       {link('/', 'Patients')}
       {link('/reviews', 'Reviews')}
+      {link('/guide', 'Guide')}
       {link('/profile', 'My profile')}
       {specialties !== null && (
         <p className="muted side-note">
