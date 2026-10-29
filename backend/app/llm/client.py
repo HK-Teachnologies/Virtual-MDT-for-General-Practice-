@@ -61,6 +61,11 @@ _ECHO = {
     },
     # No "selfcheck" fixture: point ids only exist at run time, so echo
     # mode generates a keep verdict per id in code (see mdt/tasks.py).
+    "visit_summary": {
+        "en": "Echo visit summary.",
+        "sw": "Muhtasari wa echo wa ziara.",
+        "lg": "Echo okusumulula kwa IPS.",
+    },
 }
 
 

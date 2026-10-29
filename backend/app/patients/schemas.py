@@ -55,6 +55,7 @@ class VisitRead(BaseModel):
     visit_date: date
     notes: str
     source: str
+    patient_summary: dict = {}
     clinic: ClinicRef | None = None
     attachments: list[AttachmentRead] = []
     sections: list["SectionRead"] = []

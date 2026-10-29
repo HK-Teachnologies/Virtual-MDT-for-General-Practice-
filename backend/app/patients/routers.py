@@ -24,7 +24,12 @@ from app.patients.schemas import (
     VisitUpdate,
 )
 from app.mdt.models import BriefItem, BriefRun, PatientChunk, Transcription
-from app.mdt.tasks import embed_patient_chunks, safe_delay, transcribe_attachment
+from app.mdt.tasks import (
+    embed_patient_chunks,
+    safe_delay,
+    summarize_visit,
+    transcribe_attachment,
+)
 from app.followups.models import FollowUp
 from app.patient_auth.models import OtpCode
 from app.reviews.models import Review, ReviewRecipient, ReviewResponse
@@ -330,10 +335,16 @@ def add_visit(
     _with_transcriptions(db, attachments)
     visit.clinic = clinic
     visit.sections = []
-    # Background AI: read uploaded photos/audio, then refresh patient vectors.
+    # Background AI: read uploaded photos/audio, refresh patient vectors,
+    # and write the patient-safe visit summary for the portal.
     for attachment in attachments:
         safe_delay(transcribe_attachment, attachment.id)
     safe_delay(embed_patient_chunks, patient_id)
+    safe_delay(summarize_visit, visit.id)
+    # The summary task commits in its own session: reload so the response
+    # carries it when tasks run inline (tests), and stays honest ({}) when
+    # the worker has not finished yet (production polling/backfill).
+    db.expire(visit, ["patient_summary"])
     return visit
 
 
@@ -395,6 +406,7 @@ def add_section(
     db.commit()
     db.refresh(section)
     safe_delay(embed_patient_chunks, patient_id)
+    safe_delay(summarize_visit, visit.id)
     return section
 
 
@@ -421,6 +433,7 @@ def update_section(
     db.refresh(section)
     if visit is not None:
         safe_delay(embed_patient_chunks, visit.patient_id)
+        safe_delay(summarize_visit, visit.id)
     return section
 
 
@@ -438,6 +451,7 @@ def delete_section(
     db.commit()
     if visit is not None:
         safe_delay(embed_patient_chunks, visit.patient_id)
+        safe_delay(summarize_visit, visit.id)
     return {"deleted": True}
 
 
@@ -473,6 +487,8 @@ def update_visit(
     db.commit()
     db.refresh(visit)
     safe_delay(embed_patient_chunks, visit.patient_id)
+    if "notes" in patch:
+        safe_delay(summarize_visit, visit.id)
     visit.attachments = (
         db.scalars(select(Attachment).where(Attachment.visit_id == visit.id)).all()
     )

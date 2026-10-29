@@ -71,9 +71,8 @@ export default function PatientPortal() {
       </p>
       <PatientSummary
         summary={summary}
-        visitDates={[...record.visits]
-          .sort((a, b) => b.visit_date.localeCompare(a.visit_date))
-          .map((v) => v.visit_date)}
+        visits={summary.visits ?? []}
+        recordVisits={record.visits}
         lang={lang}
         onLang={setLang}
       />

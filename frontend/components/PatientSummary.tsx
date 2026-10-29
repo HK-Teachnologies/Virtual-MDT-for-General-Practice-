@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { MySummary } from '../lib/types';
+import type { MySummary, MySummaryVisit } from '../lib/types';
 
 export type SummaryLang = 'en' | 'sw' | 'lg';
 
@@ -92,53 +92,49 @@ export function ListenButton({ text, lang }: { text: string; lang: SummaryLang }
 
 export default function PatientSummary({
   summary,
-  visitDates,
+  visits,
+  recordVisits,
   lang,
   onLang,
 }: {
   summary: MySummary;
-  visitDates: string[];
+  visits: MySummaryVisit[];
+  recordVisits: { id: string; visit_date: string }[];
   lang: SummaryLang;
   onLang: (l: SummaryLang) => void;
 }) {
   const overall = summary.summary?.[lang] ?? '';
-  const visits = summary.summary?.visits ?? [];
-  const byDate = new Map(visits.map((v) => [v.date, v]));
-  const hasAny =
-    overall || (summary.summary?.en || summary.summary?.sw || summary.summary?.lg);
-
-  if (!hasAny) {
-    return (
-      <section className="panel">
-        <h2>My visit summary</h2>
-        <LangTabs lang={lang} onChange={onLang} />
-        <p className="muted">No summary yet — your doctor prepares one after reviewing your visits.</p>
-      </section>
-    );
-  }
+  const byId = new Map(visits.map((v) => [v.visit_id, v]));
+  const ordered = [...recordVisits].sort((a, b) => b.visit_date.localeCompare(a.visit_date));
 
   return (
     <>
-      <section className="panel">
-        <h2>My visit summary</h2>
-        <LangTabs lang={lang} onChange={onLang} />
-        <p>{overall || <span className="muted">Not available in this language yet.</span>}</p>
-        {overall && (
-          <div className="row">
-            <ListenButton text={overall} lang={lang} />
-          </div>
-        )}
-        <p className="muted">This summary helps you remember your visit. Your doctor will explain more.</p>
-      </section>
+      <LangTabs lang={lang} onChange={onLang} />
+      {(summary.summary?.en || summary.summary?.sw || summary.summary?.lg) && (
+        <section className="panel">
+          <h2>My visit summary</h2>
+          <p>{overall || <span className="muted">Not available in this language yet.</span>}</p>
+          {overall && (
+            <div className="row">
+              <ListenButton text={overall} lang={lang} />
+            </div>
+          )}
+          <p className="muted">This summary helps you remember your visit. Your doctor will explain more.</p>
+        </section>
+      )}
       <section className="panel">
         <h2>Visit history</h2>
-        {visitDates.length === 0 && <p className="muted">No visits recorded yet.</p>}
-        {visitDates.map((d) => {
-          const line = byDate.get(d)?.[lang] ?? '';
+        {ordered.length === 0 && <p className="muted">No visits recorded yet.</p>}
+        {ordered.map((v) => {
+          const line = byId.get(v.id);
+          const text = line?.[lang] ?? '';
           return (
-            <div key={d} className="brief-item">
-              <strong>{d}</strong>
-              <p>{line || <span className="muted">Summary being prepared — check back soon.</span>}</p>
+            <div key={v.id} className="brief-item">
+              <div className="row">
+                <strong>{v.visit_date}</strong>
+                {text && <ListenButton text={text} lang={lang} />}
+              </div>
+              <p>{text || <span className="muted">Summary being prepared — check back soon.</span>}</p>
             </div>
           );
         })}

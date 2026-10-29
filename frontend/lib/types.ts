@@ -45,10 +45,12 @@ export interface ApiFollowUp {
 }
 
 export interface MySummaryVisit {
+  visit_id: string;
   date: string;
   en: string;
   sw: string;
   lg: string;
+  ready: boolean;
 }
 
 export interface MySummary {
@@ -58,8 +60,8 @@ export interface MySummary {
     en: string;
     sw: string;
     lg: string;
-    visits?: MySummaryVisit[];
   };
+  visits: MySummaryVisit[];
 }
 
 export interface BriefItem {

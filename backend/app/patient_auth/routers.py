@@ -166,19 +166,57 @@ def read_own_record(
     return load_patient_detail(db, current.id)
 
 
+class MySummaryVisit(BaseModel):
+    visit_id: str
+    date: str
+    en: str = ""
+    sw: str = ""
+    lg: str = ""
+    ready: bool = False
+
+
 class MySummary(BaseModel):
     run_id: str | None = None
     completed_at: datetime | None = None
+    # Overall message from the latest ready brief, when a review exists.
     summary: dict = {}
+    # Per-visit plain-language lines, written at record time — no brief needed.
+    visits: list[MySummaryVisit] = []
 
 
 @router.get("/my-summary", response_model=MySummary)
 def read_own_summary(
     current: Patient = Depends(get_current_patient), db: Session = Depends(get_db)
 ):
-    """Latest ready brief's patient-safe summary for the portal."""
+    """Portal summary: per-visit lines plus the brief overall when present."""
     from app.mdt.models import BriefRun
+    from app.mdt.tasks import safe_delay, summarize_visit
+    from app.patients.models import Visit
 
+    rows = (
+        db.scalars(
+            select(Visit)
+            .where(Visit.patient_id == current.id)
+            .order_by(Visit.visit_date)
+        ).all()
+    )
+    visits = []
+    for visit in rows:
+        stored = dict(visit.patient_summary or {})
+        ready = bool(stored.get("en"))
+        if not ready:
+            # Backfill: older visits predate automatic summaries.
+            safe_delay(summarize_visit, visit.id)
+        visits.append(
+            MySummaryVisit(
+                visit_id=visit.id,
+                date=str(visit.visit_date),
+                en=str(stored.get("en", "")),
+                sw=str(stored.get("sw", "")),
+                lg=str(stored.get("lg", "")),
+                ready=ready,
+            )
+        )
     run = (
         db.scalars(
             select(BriefRun)
@@ -186,10 +224,9 @@ def read_own_summary(
             .order_by(BriefRun.created_at.desc())
         ).first()
     )
-    if run is None:
-        return MySummary()
     return MySummary(
-        run_id=run.id,
-        completed_at=run.completed_at,
-        summary=dict(run.patient_summary or {}),
+        run_id=run.id if run else None,
+        completed_at=run.completed_at if run else None,
+        summary=dict(run.patient_summary or {}) if run else {},
+        visits=visits,
     )

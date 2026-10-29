@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -55,6 +55,10 @@ class Visit(Base):
     clinic_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("clinics.id"), nullable=True
     )
+    # Patient-safe summary of this visit ({en, sw, lg}), written at record
+    # time so the portal never needs an MDT review to exist. Plain words,
+    # no doses, never the raw notes.
+    patient_summary: Mapped[dict] = mapped_column(JSON, default=dict)
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

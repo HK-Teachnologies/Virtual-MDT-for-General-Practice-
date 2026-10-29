@@ -157,8 +157,65 @@ def test_patient_my_summary_endpoint(client: TestClient, monkeypatch):
     assert mine.status_code == 200, mine.text
     body = mine.json()
     assert body["summary"]["en"]
-    assert body["summary"]["visits"][0]["date"] == "2026-10-29"
+    assert body["visits"][0]["date"] == "2026-10-29"
 
     # Staff tokens cannot use the patient summary endpoint.
     denied = client.get("/api/patient-auth/my-summary", headers=headers)
     assert denied.status_code in (401, 403)
+
+
+def test_visit_summary_written_at_record_time(client: TestClient):
+    """The portal must not need a review: recording a visit writes its
+    own patient-safe summary in the background (inline in tests)."""
+    headers = _headers(client)
+    patient_id = _patient(client, "449449")
+    r = client.post(
+        f"/api/patients/{patient_id}/visits",
+        data={"notes": "Fever and cough for two days.", "visit_date": "2026-10-29"},
+        headers=headers,
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["patient_summary"]["en"]
+    assert r.json()["patient_summary"]["sw"]
+    assert r.json()["patient_summary"]["lg"]
+
+
+def test_visit_summary_refreshes_with_sections(client: TestClient):
+    headers = _headers(client)
+    patient_id = _patient(client, "450450")
+    r = client.post(
+        f"/api/patients/{patient_id}/visits",
+        data={"notes": "Routine review.", "visit_date": "2026-10-29"},
+        headers=headers,
+    )
+    visit_id = r.json()["id"]
+    s = client.post(
+        f"/api/patients/{patient_id}/visits/{visit_id}/sections",
+        json={"section": "lab", "content": "Malaria RDT positive."},
+        headers=headers,
+    )
+    assert s.status_code == 201, s.text
+    record = client.get(f"/api/patients/{patient_id}", headers=headers)
+    visit = [v for v in record.json()["visits"] if v["id"] == visit_id][0]
+    assert visit["patient_summary"]["en"]
+
+
+def test_my_summary_needs_no_brief(client: TestClient, monkeypatch):
+    """A patient with visits but no MDT review still gets visit lines."""
+    headers = _headers(client)
+    patient_id, token = _patient_token(client, "451451", monkeypatch)
+    ph = {"Authorization": f"Bearer {token}"}
+    client.post(
+        f"/api/patients/{patient_id}/visits",
+        data={"notes": "Headache for three days.", "visit_date": "2026-10-29"},
+        headers=headers,
+    )
+    mine = client.get("/api/patient-auth/my-summary", headers=ph)
+    assert mine.status_code == 200, mine.text
+    body = mine.json()
+    assert body["run_id"] is None
+    assert len(body["visits"]) == 1
+    assert body["visits"][0]["ready"] is True
+    assert body["visits"][0]["en"]
+    assert body["visits"][0]["sw"]
+    assert body["visits"][0]["lg"]

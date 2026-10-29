@@ -24,6 +24,7 @@ from app.llm.prompts import (
     PATIENT_SUMMARY_SYSTEM,
     PLAN_SYSTEM,
     SELFCHECK_SYSTEM,
+    VISIT_SUMMARY_SYSTEM,
 )
 
 # Register every table in metadata. The web app gets this via main.py, but
@@ -188,6 +189,8 @@ def transcribe_attachment(attachment_id: str) -> str:
         patient_id = _patient_of(db, attachment.visit_id)
         db.commit()
         safe_delay(embed_patient_chunks, patient_id)
+        # A machine read adds visit content: refresh the patient summary.
+        safe_delay(summarize_visit, attachment.visit_id)
         return "ok"
 
 
@@ -243,6 +246,72 @@ def embed_patient_chunks(patient_id: str) -> str:
                 )
         db.commit()
         return f"{len(texts)} chunks"
+
+
+@celery_app.task(name="mdt.summarize_visit")
+def summarize_visit(visit_id: str) -> str:
+    """Patient-safe summary of one visit ({en, sw, lg}), written at record
+    time so the portal never needs an MDT review to exist.
+
+    Idempotent overwrite: re-runs whenever visit content lands (new visit,
+    edited notes, sections, transcriptions). Failures only log — the
+    portal shows "being prepared" and retries on the next read.
+    """
+    from app.clinics.models import Clinic
+    from app.patients.models import Attachment, Patient, Visit, VisitSection
+
+    with SessionLocal() as db:
+        visit = db.get(Visit, visit_id)
+        if visit is None:
+            return "missing"
+        patient = db.get(Patient, visit.patient_id)
+        identifiers = _patient_identifiers(patient)
+        clinic = db.get(Clinic, visit.clinic_id) if visit.clinic_id else None
+        parts = [
+            f"Visit {visit.visit_date} [{clinic.name if clinic else 'general'}]: "
+            f"{redact_pii((visit.notes or '(no notes)')[:1000], identifiers)}"
+        ]
+        for section in db.scalars(
+            select(VisitSection).where(VisitSection.visit_id == visit.id)
+        ).all():
+            parts.append(
+                f"{section.section}: {redact_pii((section.content or '')[:500], identifiers)}"
+            )
+        for attachment in db.scalars(
+            select(Attachment).where(Attachment.visit_id == visit.id)
+        ).all():
+            tr = db.scalar(
+                select(Transcription).where(
+                    Transcription.attachment_id == attachment.id
+                )
+            )
+            if tr and tr.text:
+                parts.append(
+                    f"attached {tr.kind}: {redact_pii(tr.text[:500], identifiers)}"
+                )
+        if settings.llm_provider == "echo":
+            summary = {
+                "en": "Echo visit summary.",
+                "sw": "Muhtasari wa echo wa ziara.",
+                "lg": "Echo okusumulula kwa IPS.",
+            }
+        else:
+            try:
+                raw = llm.complete_json(
+                    system=VISIT_SUMMARY_SYSTEM,
+                    user="\n".join(parts),
+                    kind="visit_summary",
+                )
+            except Exception as exc:
+                logger.warning("Visit summary failed, continuing: %s", exc)
+                return "failed"
+            summary = {
+                lang: str(raw.get(lang, ""))
+                for lang in ("en", "sw", "lg")
+            }
+        visit.patient_summary = summary
+        db.commit()
+        return "ok"
 
 
 def extract_document_pages(filename: str, raw: bytes) -> list[tuple[int, str]]:

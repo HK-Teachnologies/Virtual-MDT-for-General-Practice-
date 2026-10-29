@@ -128,6 +128,12 @@ export default function Guide() {
           or phone number plus a one-time code. The portal is read-only: they can view
           their record but not change it.
         </p>
+        <p>
+          Each visit automatically gets a plain-language summary in English, Kiswahili,
+          and Luganda with a <strong>Listen</strong> button — no review needs to run
+          first. Doctors can also send follow-up questions from the patient record,
+          which the patient answers by text or voice note in the portal.
+        </p>
       </Step>
 
       <p>
