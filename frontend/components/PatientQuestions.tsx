@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import AuthedAudio from './AuthedAudio';
 import VoiceRecorder from './VoiceRecorder';
-import { answerQuestion, getPatientToken, myAnswerAudioUrl } from '../lib/patient-auth';
+import { answerQuestion, getPatientToken } from '../lib/patient-auth';
 import type { ApiFollowUp } from '../lib/types';
 
 function AnswerForm({ q, token, onAnswered }: { q: ApiFollowUp; token: string; onAnswered: (q: ApiFollowUp) => void }) {
@@ -80,7 +79,6 @@ export default function PatientQuestions({
             <div key={q.id} className="brief-item">
               <p className="muted">{wording(q)}</p>
               <p>{q.answer_text}</p>
-              {q.has_audio && token && <AuthedAudio url={myAnswerAudioUrl(q.id)} token={token} />}
             </div>
           ))}
         </details>

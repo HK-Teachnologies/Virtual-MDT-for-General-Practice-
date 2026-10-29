@@ -12,6 +12,15 @@ import {
 import type { ApiAttachment, ApiSection, ApiTranscription, ApiVisit } from '../lib/types';
 import VisitSummaryGate from './VisitSummaryGate';
 
+const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.ogg', '.flac', '.aac', '.opus', '.wma', '.webm'];
+
+function isAudioFile(a: ApiAttachment): boolean {
+  if (a.transcription?.kind === 'audio') return true;
+  if ((a.content_type ?? '').startsWith('audio/')) return true;
+  const name = a.filename.toLowerCase();
+  return AUDIO_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
+
 const TRANSCRIPT_LABEL: Record<string, string> = {
   image: 'Photo read',
   audio: 'Dictation transcript',
@@ -231,7 +240,9 @@ export default function VisitCard({
           {visit.attachments.map((a) => (
             <li key={a.id}>
               {a.filename}{' '}
-              {!readOnly && token ? (
+              {isAudioFile(a) ? (
+                <span className="muted">(voice note kept as text only)</span>
+              ) : !readOnly && token ? (
                 <button
                   className="link-btn"
                   type="button"

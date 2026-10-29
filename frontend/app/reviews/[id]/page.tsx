@@ -14,7 +14,7 @@ function AuthedMedia({
   token,
 }: {
   responseId: string;
-  kind: 'image' | 'audio';
+  kind: 'image';
   token: string;
 }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -40,11 +40,7 @@ function AuthedMedia({
   }, [responseId, kind, token]);
 
   if (!url) return null;
-  return kind === 'image' ? (
-    <img className="response-photo" src={url} alt="Response attachment" />
-  ) : (
-    <audio controls src={url} />
-  );
+  return <img className="response-photo" src={url} alt="Response attachment" />;
 }
 
 export default function ReviewDetail() {
@@ -246,7 +242,6 @@ export default function ReviewDetail() {
               </p>
               <p>{r.text}</p>
               {r.has_image && <AuthedMedia responseId={r.id} kind="image" token={token} />}
-              {r.has_audio && <AuthedMedia responseId={r.id} kind="audio" token={token} />}
             </article>
           ))
         )}

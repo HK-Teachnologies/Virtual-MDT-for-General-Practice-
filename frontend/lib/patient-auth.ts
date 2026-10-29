@@ -83,7 +83,3 @@ export async function answerQuestion(
   if (!res.ok) throw new Error(await readError(res));
   return (await res.json()) as ApiFollowUp;
 }
-
-export function myAnswerAudioUrl(id: string): string {
-  return `${API_BASE}/api/followups/mine/${id}/audio`;
-}

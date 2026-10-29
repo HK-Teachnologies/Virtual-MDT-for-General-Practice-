@@ -89,7 +89,7 @@ export default function VoiceRecorder({
       )}
       {preview && (
         <div className="row">
-          <audio controls src={preview} />
+          <span className="muted">Voice note ready to send.</span>
           <button className="btn" type="button" onClick={clear}>
             Remove
           </button>

@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { API_BASE, askFollowUp, fetchFollowUpThread } from '../lib/api';
-import AuthedAudio from './AuthedAudio';
+import { askFollowUp, fetchFollowUpThread } from '../lib/api';
 import type { ApiFollowUp } from '../lib/types';
 
 export default function FollowUpThread({ patientId, token }: { patientId: string; token: string }) {
@@ -45,12 +44,7 @@ export default function FollowUpThread({ patientId, token }: { patientId: string
             <span className="badge">{q.status === 'open' ? 'Waiting for patient' : 'Answered'}</span>
           </div>
           <p>{q.question}</p>
-          {q.status !== 'open' && (
-            <>
-              <p>{q.answer_text}</p>
-              {q.has_audio && <AuthedAudio url={`${API_BASE}/api/followups/${q.id}/audio`} token={token} />}
-            </>
-          )}
+          {q.status !== 'open' && <p>{q.answer_text}</p>}
         </div>
       ))}
       <div className="field">
