@@ -500,6 +500,72 @@ def test_guideline_citation_must_match_retrieved_evidence(monkeypatch, client: T
     )
 
 
+def test_plan_constrained_to_clinic_specialties(monkeypatch, client: TestClient):
+    """An invented specialty from the model is dropped; a real one matches
+    case-insensitively to its canonical spelling, and the plan prompt
+    carries the clinic's specialty list."""
+    from app.core.config import settings
+    from app.mdt import tasks
+
+    captured: dict = {}
+    monkeypatch.setattr(settings, "llm_provider", "litellm")
+    monkeypatch.setattr(tasks.llm, "embed", lambda texts: [[0.1] * 768 for _ in texts])
+
+    def fake_complete_json(*, system: str, user: str, kind: str, **kwargs):
+        if kind == "plan":
+            captured["plan_system"] = system
+            return {
+                "specialties": ["Moon Medicine", "hiv CARE", "HIV care"],
+                "queries": [f"query {n}" for n in range(8)],
+                "reasoning": "t",
+            }
+        if kind == "draft":
+            return {
+                "specialties": ["Moon Medicine"],
+                "items": [],
+                "interactions": [],
+                "overdue_checks": [],
+            }
+        if kind == "selfcheck":
+            return {"verdicts": []}
+        raise AssertionError(f"unexpected kind {kind}")
+
+    monkeypatch.setattr(tasks.llm, "complete_json", fake_complete_json)
+
+    token = admin_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    r = client.post(
+        "/api/specialties", json={"name": "HIV care"}, headers=headers
+    )
+    assert r.status_code == 201, r.text
+
+    patient = _patient(client, token, "000009")
+    _visit(client, token, patient["id"])
+    r = client.post(
+        "/api/mdt/brief", json={"patient_id": patient["id"]}, headers=headers
+    )
+    assert r.status_code == 202, r.text
+    run = r.json()
+    assert run["status"] == "ready", run
+    # Invented dropped, case variant canonicalised and de-duplicated, and
+    # the draft's invented specialty did not sneak back in.
+    assert run["specialties"] == ["HIV care"]
+    assert "HIV care" in captured["plan_system"]
+    assert "Moon Medicine" not in captured["plan_system"].split("Choose ONLY")[1]
+
+
+def test_canonical_specialties_unit():
+    from app.mdt.tasks import _canonical_specialties
+
+    allowed = ["HIV care", "Cardiology"]
+    assert _canonical_specialties(["cardiology", "NCD", " HIV CARE "], allowed) == [
+        "Cardiology",
+        "HIV care",
+    ]
+    assert _canonical_specialties("not-a-list", allowed) == []
+    assert _canonical_specialties([], allowed) == []
+
+
 def test_validate_guideline_citation_unit():
     from app.mdt.tasks import _validate_guideline_citation
 

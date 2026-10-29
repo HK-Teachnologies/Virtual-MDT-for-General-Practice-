@@ -347,6 +347,33 @@ def _set_step(db, run: BriefRun, status: str, step: str) -> None:
     db.commit()
 
 
+# Used when the clinic has no specialties configured yet, so the planner
+# still chooses from real review-routing names.
+DEFAULT_SPECIALTIES = [
+    "HIV care",
+    "TB",
+    "Cardiology",
+    "Endocrinology",
+    "Pharmacy",
+    "Mental health",
+    "Nutrition",
+    "Maternal health",
+]
+
+
+def _canonical_specialties(names: object, allowed: list[str]) -> list[str]:
+    """Keep only names on the clinic's specialty list (case-insensitive),
+    stored with the list's canonical spelling, order preserved."""
+    by_name = {name.strip().lower(): name for name in allowed if name.strip()}
+    kept = []
+    raw = names if isinstance(names, list) else []
+    for name in raw:
+        canon = by_name.get(str(name).strip().lower())
+        if canon is not None and canon not in kept:
+            kept.append(canon)
+    return kept
+
+
 def _normalize_interaction(raw: object) -> dict:
     """Coerce one draft interaction to the object shape the UI renders."""
     if isinstance(raw, str):
@@ -414,19 +441,35 @@ def run_brief(self, run_id: str) -> str:
             return "missing"
         try:
             _set_step(db, run, "planning", "Planning the review")
+            from app.specialties.models import Specialty
+
+            specialty_rows = (
+                db.scalars(
+                    select(Specialty)
+                    .where(Specialty.active.is_(True))
+                    .order_by(Specialty.name)
+                ).all()
+            )
+            allowed_specialties = [s.name for s in specialty_rows if (s.name or "").strip()]
+            if not allowed_specialties:
+                allowed_specialties = list(DEFAULT_SPECIALTIES)
             case_text = _timeline_text(db, run.patient_id)
             plan = llm.complete_json(
-                system=PLAN_SYSTEM,
+                system=PLAN_SYSTEM.format(
+                    specialty_list=", ".join(allowed_specialties)
+                ),
                 user=f"Case summary:\n{case_text}",
                 kind="plan",
             )
-            run.specialties = [str(s) for s in plan.get("specialties", [])][:4]
+            run.specialties = _canonical_specialties(
+                plan.get("specialties", []), allowed_specialties
+            )[:4]
             run.model = settings.llm_model
             run.prompt_version = settings.prompt_version
             db.commit()
 
             _set_step(db, run, "retrieving", "Retrieving history and guidelines")
-            queries = [str(q) for q in plan.get("queries", [])][:4] or ["overall review"]
+            queries = [str(q) for q in plan.get("queries", [])][:6] or ["overall review"]
             query_vectors = llm.embed(queries)
             history, guides = [], []
             for vector in query_vectors:
@@ -599,7 +642,10 @@ def run_brief(self, run_id: str) -> str:
                 else:
                     entry["point"]["cited_labels"] = entry["cited"]
                     kept_checks.append(entry["point"])
-            run.specialties = [str(s) for s in draft.get("specialties", run.specialties or [])][:4]
+            draft_specialties = _canonical_specialties(
+                draft.get("specialties", []), allowed_specialties
+            )
+            run.specialties = (draft_specialties or list(run.specialties or []))[:4]
             run.interactions = kept_interactions
             run.overdue_checks = kept_checks
             run.removed_points = removed_points
