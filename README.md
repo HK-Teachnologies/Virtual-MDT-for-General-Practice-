@@ -241,8 +241,10 @@ Backend settings come from `deployment/docker-compose/.env` (see `.env.example`)
 - [x] Guideline library (PDF upload, async indexing with retry, RAG citations)
   - Guidelines uploaded before page-aware indexing need one **Reindex** (Admin →
     Guidelines → Reindex) so brief citations carry verified page numbers.
-- [ ] Referral letter generation (bonus)
-- [ ] Patient follow-up in Luganda / Swahili / English (future, not in hackathon build)
+- [x] Referral letter generation (bonus) — drafted from signed-off points,
+      released like a summary, carried by the patient to any facility
+- [x] Patient follow-up in Luganda / Swahili / English — staff questions
+      auto-translated for the portal; answers by text or voice note
 
 ## Contributing
 

@@ -137,6 +137,11 @@ export default function Guide() {
           see text a clinician has reviewed and released; anything still in draft
           shows <strong>Your doctor is preparing your summary.</strong>
         </p>
+        <p>
+          Released <strong>Referral letters</strong> appear here too: open the letter
+          and show it at the health facility you visit — even if it is not the one
+          named on it.
+        </p>
       </Step>
 
       <Step n="9" title="Release summaries to the patient">
