@@ -554,6 +554,79 @@ def test_plan_constrained_to_clinic_specialties(monkeypatch, client: TestClient)
     assert "Moon Medicine" not in captured["plan_system"].split("Choose ONLY")[1]
 
 
+def test_rerank_echo_keeps_input_order():
+    from app.llm import client as llm_client
+
+    assert llm_client.rerank("query", ["a", "b", "c"]) == [0, 1, 2]
+    assert llm_client.rerank("query", []) == []
+    assert llm_client.rerank("query", ["only"]) == [0]
+
+
+def test_brief_reranks_wide_guideline_net(monkeypatch, client: TestClient):
+    """Retrieval pulls 20 guideline candidates per query; the cross-encoder
+    order decides which 4 reach the brief's evidence."""
+    import json
+    from types import SimpleNamespace
+
+    from app.core.config import settings
+    from app.mdt import tasks
+
+    seen_k: list[int] = []
+    reranked: list[tuple[str, list[str]]] = []
+    captured: dict = {}
+    monkeypatch.setattr(settings, "llm_provider", "litellm")
+    monkeypatch.setattr(tasks.llm, "embed", lambda texts: [[0.1] * 768 for _ in texts])
+
+    def fake_guides(db, *, query_vector, k=8):
+        seen_k.append(k)
+        return [
+            SimpleNamespace(
+                id=f"c{i}", doc_id="missing", text=f"doc {i}",
+                page_start=None, page_end=None,
+            )
+            for i in range(6)
+        ]
+
+    def fake_rerank(query: str, texts: list[str]):
+        reranked.append((query, texts))
+        return list(reversed(range(len(texts))))
+
+    monkeypatch.setattr(tasks.retrieval, "retrieve_guidelines", fake_guides)
+    monkeypatch.setattr(tasks.llm, "rerank", fake_rerank)
+
+    def fake_complete_json(*, system: str, user: str, kind: str, **kwargs):
+        if kind == "plan":
+            return {"specialties": [], "queries": ["qq"], "reasoning": "t"}
+        if kind == "draft":
+            return {"specialties": [], "items": [], "interactions": [], "overdue_checks": []}
+        if kind == "selfcheck":
+            captured["user"] = user
+            return {"verdicts": []}
+        raise AssertionError(f"unexpected kind {kind}")
+
+    monkeypatch.setattr(tasks.llm, "complete_json", fake_complete_json)
+
+    token = admin_token(client)
+    patient = _patient(client, token, "000010")
+    _visit(client, token, patient["id"])
+    r = client.post(
+        "/api/mdt/brief",
+        json={"patient_id": patient["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 202, r.text
+    assert r.json()["status"] == "ready", r.json()
+
+    assert seen_k == [20]
+    assert len(reranked) == 1
+    assert reranked[0][1] == [f"doc {i}" for i in range(6)]
+    evidence = json.loads(captured["user"])["evidence"]
+    # Top 4 of the reversed order made the evidence, in reranked order.
+    assert "[G1] Guideline:\ndoc 5" in evidence
+    assert "[G4] Guideline:\ndoc 2" in evidence
+    assert "doc 0" not in evidence and "doc 1" not in evidence
+
+
 def test_canonical_specialties_unit():
     from app.mdt.tasks import _canonical_specialties
 

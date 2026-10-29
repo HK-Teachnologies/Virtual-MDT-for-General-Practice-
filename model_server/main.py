@@ -68,7 +68,7 @@ def embed(data: EmbedRequest):
 def rerank(data: RerankRequest):
     """Cross-encoder relevance scores for (query, document) pairs.
 
-    Not wired into retrieval yet — available for a retrieve-then-rerank pass.
+    Wired into the brief retrieve-then-rerank pass.
     """
     if not data.documents:
         raise HTTPException(status_code=400, detail="No documents provided")

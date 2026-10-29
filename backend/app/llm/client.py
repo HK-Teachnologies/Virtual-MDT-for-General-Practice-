@@ -8,9 +8,12 @@ for tests and offline development — it never touches the network.
 
 import base64
 import json
+import logging
 from pathlib import Path
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class LLMError(Exception):
@@ -278,3 +281,35 @@ def _embed_remote(texts: list[str], dim: int) -> list[list[float]]:
         raise LLMError(f"model server embedding failed: {exc}") from exc
     _check_dims(vectors, dim)
     return vectors
+
+
+def rerank(query: str, texts: list[str]) -> list[int]:
+    """Best-first order of document indexes by cross-encoder relevance.
+
+    Calls {model_server_url}/rerank when a model server is configured.
+    Without one (echo/tests) — or if the ranker fails — returns the input
+    order unchanged, so a down ranker degrades to plain vector search
+    instead of breaking the brief.
+    """
+    if len(texts) <= 1:
+        return list(range(len(texts)))
+    if settings.llm_provider == "echo" or not settings.model_server_url:
+        return list(range(len(texts)))
+    import httpx
+
+    try:
+        resp = httpx.post(
+            settings.model_server_url.rstrip("/") + "/rerank",
+            json={"query": query, "documents": texts},
+            timeout=300.0,
+        )
+        resp.raise_for_status()
+        scores = resp.json()["scores"]
+    except Exception as exc:
+        logger.warning("model server rerank failed, keeping vector order: %s", exc)
+        return list(range(len(texts)))
+    if not isinstance(scores, list) or len(scores) != len(texts):
+        logger.warning("model server rerank returned %s scores for %s documents", len(scores) if isinstance(scores, list) else type(scores), len(texts))
+        return list(range(len(texts)))
+    order = sorted(range(len(texts)), key=lambda i: scores[i], reverse=True)
+    return order

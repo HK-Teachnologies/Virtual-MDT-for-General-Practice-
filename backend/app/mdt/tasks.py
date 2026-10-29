@@ -472,11 +472,19 @@ def run_brief(self, run_id: str) -> str:
             queries = [str(q) for q in plan.get("queries", [])][:6] or ["overall review"]
             query_vectors = llm.embed(queries)
             history, guides = [], []
-            for vector in query_vectors:
+            for query, vector in zip(queries, query_vectors):
                 history += retrieval.retrieve_patient_history(
                     db, patient_id=run.patient_id, query_vector=vector, k=4
                 )
-                guides += retrieval.retrieve_guidelines(db, query_vector=vector, k=4)
+                # Wide vector net, then the cross-encoder keeps the 4
+                # excerpts that actually answer this query.
+                candidates = retrieval.retrieve_guidelines(
+                    db, query_vector=vector, k=20
+                )
+                order = llm.rerank(query, [c.text for c in candidates])
+                guides += [
+                    candidates[i] for i in order[:4] if i < len(candidates)
+                ]
             seen, history_unique, guides_unique = set(), [], []
             for chunk in history:
                 if chunk.id not in seen:
@@ -509,6 +517,12 @@ def run_brief(self, run_id: str) -> str:
                     "page": chunk.page_start,
                 }
                 guide_lines.append(f"[{tag}] {label}:\n{chunk.text}")
+            logger.info(
+                "Brief %s guideline evidence: %s",
+                run.id,
+                ", ".join(f"[{t}] {g['label']}" for t, g in guide_tags.items())
+                or "none",
+            )
             evidence = "\n".join(
                 ["Relevant past history:"]
                 + [f"- {c.text}" for c in history_unique[:8]]
