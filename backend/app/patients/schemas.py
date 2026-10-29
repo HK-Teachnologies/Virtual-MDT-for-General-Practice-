@@ -61,13 +61,29 @@ class VisitRead(BaseModel):
     notes: str
     source: str
     patient_summary: dict = {}
+    summary_status: str = "draft"
+    released_by_name: str | None = None
+    released_at: datetime | None = None
     clinic: ClinicRef | None = None
 
     _null_summary_to_empty = field_validator("patient_summary", mode="before")(
         _coerce_summary
     )
+
+    _null_status_to_draft = field_validator("summary_status", mode="before")(
+        lambda v: v or "draft"
+    )
     attachments: list[AttachmentRead] = []
     sections: list["SectionRead"] = []
+
+
+class VisitSummaryUpdate(BaseModel):
+    """Clinician edit of the three patient-facing lines. Editing a
+    released summary returns it to draft."""
+
+    en: str
+    sw: str
+    lg: str
 
 
 class SectionCreate(BaseModel):

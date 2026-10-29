@@ -113,31 +113,98 @@ def test_followup_voice_answer_transcribed(client: TestClient, monkeypatch):
     assert denied.status_code in (401, 403)
 
 
-def test_patient_summary_present_in_echo_run(client: TestClient):
-    token = admin_token(client)
-    headers = {"Authorization": f"Bearer {token}"}
-    r = client.post(
-        "/api/patients",
-        json={"full_name": "Summary Patient", "phone": "+256700447447"},
-        headers=headers,
-    )
-    patient_id = r.json()["id"]
+def _ready_brief(client: TestClient, headers: dict, patient_id: str) -> dict:
+    r = client.post("/api/mdt/brief", json={"patient_id": patient_id}, headers=headers)
+    assert r.status_code == 202, r.text
+    run = r.json()
+    assert run["status"] == "ready", run
+    return run
+
+
+def test_brief_writes_no_patient_summary(client: TestClient):
+    """The release gate: a finished brief must not publish anything to
+    the patient until the doctor prepares and releases a summary."""
+    headers = _headers(client)
+    patient_id = _patient(client, "447447")
     client.post(
         f"/api/patients/{patient_id}/visits",
         data={"notes": "Routine review.", "visit_date": "2026-10-29"},
         headers=headers,
     )
-    r = client.post("/api/mdt/brief", json={"patient_id": patient_id}, headers=headers)
-    assert r.status_code == 202, r.text
-    run = r.json()
-    assert run["status"] == "ready", run
-    assert run["patient_summary"]["en"]
-    assert run["patient_summary"]["sw"]
-    assert run["patient_summary"]["lg"]
-    visits = run["patient_summary"]["visits"]
-    assert len(visits) == 1
-    assert visits[0]["date"] == "2026-10-29"
-    assert visits[0]["en"] and visits[0]["sw"] and visits[0]["lg"]
+    run = _ready_brief(client, headers, patient_id)
+    assert run["patient_summary"] == {}
+    assert run["summary_status"] == "draft"
+
+
+def test_prepare_summary_uses_only_signed_off_items(
+    client: TestClient, monkeypatch
+):
+    """Approved + doctor-edited wording reach the prompt; suggested,
+    rejected and removed points never do."""
+    import json as _json
+
+    from app.core.config import settings
+    from app.llm import client as llm_client
+
+    captured = {}
+
+    def recorder(*, system, user, kind, max_tokens=8000, retries=1):
+        captured["payload"] = _json.loads(user)
+        return {
+            "en": "Recorded summary.",
+            "sw": "Muhtasari uliorekodiwa.",
+            "lg": "Okusumulula okukwata.",
+        }
+
+    headers = _headers(client)
+    patient_id = _patient(client, "453453")
+    client.post(
+        f"/api/patients/{patient_id}/visits",
+        data={"notes": "Routine review.", "visit_date": "2026-10-29"},
+        headers=headers,
+    )
+    run = _ready_brief(client, headers, patient_id)
+    assert len(run["items"]) >= 2
+    first, second = run["items"][0]["id"], run["items"][1]["id"]
+    ok = client.patch(
+        f"/api/mdt/items/{first}", json={"status": "approved"}, headers=headers
+    )
+    assert ok.status_code == 200, ok.text
+    ok = client.patch(
+        f"/api/mdt/items/{second}",
+        json={"status": "edited", "edited_text": "Doctor wording: continue current care."},
+        headers=headers,
+    )
+    assert ok.status_code == 200, ok.text
+
+    # Record the exact prompt payload the prepare step sends.
+    monkeypatch.setattr(settings, "llm_provider", "recorded")
+    monkeypatch.setattr(llm_client, "complete_json", recorder)
+    prep = client.post(
+        f"/api/mdt/runs/{run['id']}/patient-summary", headers=headers
+    )
+    assert prep.status_code == 202, prep.text
+    points = captured["payload"]["approved_points"]
+    assert len(points) == 2
+    texts = " | ".join(p["point"] for p in points)
+    assert "Review ART adherence" in texts
+    assert "Doctor wording: continue current care." in texts
+    assert "interactions" not in captured["payload"]
+    summary = prep.json()["run"]["patient_summary"]
+    assert summary["en"] == "Recorded summary."
+    assert prep.json()["run"]["summary_status"] == "draft"
+
+    # Rejecting everything leaves nothing to say: no prompt, no summary.
+    client.patch(f"/api/mdt/items/{first}", json={"status": "rejected"}, headers=headers)
+    client.patch(
+        f"/api/mdt/items/{second}", json={"status": "rejected"}, headers=headers
+    )
+    captured.clear()
+    prep = client.post(
+        f"/api/mdt/runs/{run['id']}/patient-summary", headers=headers
+    )
+    assert prep.status_code == 202, prep.text
+    assert captured == {}
 
 
 def test_patient_my_summary_endpoint(client: TestClient, monkeypatch):
@@ -145,19 +212,49 @@ def test_patient_my_summary_endpoint(client: TestClient, monkeypatch):
     patient_id, token = _patient_token(client, "448448", monkeypatch)
     ph = {"Authorization": f"Bearer {token}"}
 
-    client.post(
+    v = client.post(
         f"/api/patients/{patient_id}/visits",
         data={"notes": "Routine review.", "visit_date": "2026-10-29"},
         headers=headers,
     )
-    r = client.post("/api/mdt/brief", json={"patient_id": patient_id}, headers=headers)
-    assert r.status_code == 202, r.text
+    visit_id = v.json()["id"]
 
+    # Drafts never appear: the visit exists but nothing is released.
     mine = client.get("/api/patient-auth/my-summary", headers=ph)
     assert mine.status_code == 200, mine.text
+    assert mine.json()["visits"][0]["ready"] is False
+    assert mine.json()["visits"][0]["en"] == ""
+
+    rel = client.post(
+        f"/api/patients/visits/{visit_id}/release", headers=headers
+    )
+    assert rel.status_code == 200, rel.text
+    assert rel.json()["summary_status"] == "released"
+
+    run = _ready_brief(client, headers, patient_id)
+    for item in run["items"]:
+        client.patch(
+            f"/api/mdt/items/{item['id']}",
+            json={"status": "approved"},
+            headers=headers,
+        )
+    prep = client.post(
+        f"/api/mdt/runs/{run['id']}/patient-summary", headers=headers
+    )
+    assert prep.status_code == 202, prep.text
+    rel_run = client.post(
+        f"/api/mdt/runs/{run['id']}/patient-summary/release", headers=headers
+    )
+    assert rel_run.status_code == 200, rel_run.text
+
+    mine = client.get("/api/patient-auth/my-summary", headers=ph)
     body = mine.json()
     assert body["summary"]["en"]
+    assert body["summary_released_by_name"]
     assert body["visits"][0]["date"] == "2026-10-29"
+    assert body["visits"][0]["ready"] is True
+    assert body["visits"][0]["en"]
+    assert body["visits"][0]["released_by_name"]
 
     # Staff tokens cannot use the patient summary endpoint.
     denied = client.get("/api/patient-auth/my-summary", headers=headers)
@@ -165,8 +262,8 @@ def test_patient_my_summary_endpoint(client: TestClient, monkeypatch):
 
 
 def test_visit_summary_written_at_record_time(client: TestClient):
-    """The portal must not need a review: recording a visit writes its
-    own patient-safe summary in the background (inline in tests)."""
+    """Recording a visit drafts its own patient-safe summary in the
+    background (inline in tests) — still needing clinician release."""
     headers = _headers(client)
     patient_id = _patient(client, "449449")
     r = client.post(
@@ -178,6 +275,7 @@ def test_visit_summary_written_at_record_time(client: TestClient):
     assert r.json()["patient_summary"]["en"]
     assert r.json()["patient_summary"]["sw"]
     assert r.json()["patient_summary"]["lg"]
+    assert r.json()["summary_status"] == "draft"
 
 
 def test_visit_summary_refreshes_with_sections(client: TestClient):
@@ -230,22 +328,77 @@ def test_null_visit_summary_serializes_as_empty(client: TestClient, monkeypatch)
     assert staff.json()["visits"][0]["patient_summary"] == {}
 
 
-def test_my_summary_needs_no_brief(client: TestClient, monkeypatch):
-    """A patient with visits but no MDT review still gets visit lines."""
+def test_drafts_hidden_until_released(client: TestClient, monkeypatch):
+    """A patient with visits but no releases sees placeholders, never
+    draft text — with or without a review on record."""
     headers = _headers(client)
     patient_id, token = _patient_token(client, "451451", monkeypatch)
     ph = {"Authorization": f"Bearer {token}"}
-    client.post(
+    v = client.post(
         f"/api/patients/{patient_id}/visits",
         data={"notes": "Headache for three days.", "visit_date": "2026-10-29"},
         headers=headers,
     )
+    visit_id = v.json()["id"]
+    assert v.json()["summary_status"] == "draft"
+
     mine = client.get("/api/patient-auth/my-summary", headers=ph)
     assert mine.status_code == 200, mine.text
     body = mine.json()
     assert body["run_id"] is None
     assert len(body["visits"]) == 1
+    assert body["visits"][0]["ready"] is False
+    assert body["visits"][0]["en"] == ""
+
+    rel = client.post(
+        f"/api/patients/visits/{visit_id}/release", headers=headers
+    )
+    assert rel.status_code == 200, rel.text
+    mine = client.get("/api/patient-auth/my-summary", headers=ph)
+    body = mine.json()
     assert body["visits"][0]["ready"] is True
     assert body["visits"][0]["en"]
     assert body["visits"][0]["sw"]
     assert body["visits"][0]["lg"]
+    assert body["visits"][0]["released_by_name"]
+
+
+def test_edit_and_regenerate_reset_release(client: TestClient, monkeypatch):
+    """Release is one-way per text version: editing a released summary,
+    or regenerating it from new visit content, returns it to draft."""
+    headers = _headers(client)
+    patient_id, token = _patient_token(client, "454454", monkeypatch)
+    ph = {"Authorization": f"Bearer {token}"}
+    v = client.post(
+        f"/api/patients/{patient_id}/visits",
+        data={"notes": "Headache for three days.", "visit_date": "2026-10-29"},
+        headers=headers,
+    )
+    visit_id = v.json()["id"]
+    client.post(f"/api/patients/visits/{visit_id}/release", headers=headers)
+
+    edited = client.patch(
+        f"/api/patients/visits/{visit_id}/summary",
+        json={"en": "Edited line.", "sw": "Mstari uliohaririwa.", "lg": "Lunyiriri olukyusiddwa."},
+        headers=headers,
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["summary_status"] == "draft"
+    assert edited.json()["released_by_name"] is None
+    assert edited.json()["patient_summary"]["en"] == "Edited line."
+    mine = client.get("/api/patient-auth/my-summary", headers=ph)
+    assert mine.json()["visits"][0]["ready"] is False
+
+    client.post(f"/api/patients/visits/{visit_id}/release", headers=headers)
+    s = client.post(
+        f"/api/patients/{patient_id}/visits/{visit_id}/sections",
+        json={"section": "lab", "content": "Malaria RDT positive."},
+        headers=headers,
+    )
+    assert s.status_code == 201, s.text
+    record = client.get(f"/api/patients/{patient_id}", headers=headers)
+    visit = [x for x in record.json()["visits"] if x["id"] == visit_id][0]
+    assert visit["summary_status"] == "draft"
+    assert visit["released_by_name"] is None
+    mine = client.get("/api/patient-auth/my-summary", headers=ph)
+    assert mine.json()["visits"][0]["ready"] is False

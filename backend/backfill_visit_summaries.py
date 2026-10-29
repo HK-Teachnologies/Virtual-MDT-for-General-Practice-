@@ -1,9 +1,10 @@
 """One-time backfill: per-visit patient summaries for pre-0019 visits.
 
-Visits recorded before migration 0019 have no patient_summary, so the
-portal shows "being prepared" until a read triggers the worker. This
-script queues mdt.summarize_visit for every visit missing a summary up
-front instead. Safe to re-run: visits that already have one are skipped.
+Visits recorded before migration 0019 have no patient_summary. This
+script queues mdt.summarize_visit for every visit missing one. Queued
+work lands as draft: a clinician still reviews and releases each
+summary before patients see it. Safe to re-run: visits that already
+have one are skipped.
 
 Run inside the backend container (worker must be running to drain the
 queue):
@@ -35,7 +36,7 @@ def main() -> int:
             print(f"backfill: queue failed for {visit_id}: {exc}")
         if i % 50 == 0:
             print(f"backfill: {i}/{len(missing)} queued...")
-    print(f"backfill: queued {queued}, failed {failed} (worker writes EN/SW/LG)")
+    print(f"backfill: queued {queued}, failed {failed} (worker drafts EN/SW/LG for release)")
     return 1 if failed else 0
 
 

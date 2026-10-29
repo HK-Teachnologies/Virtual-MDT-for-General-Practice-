@@ -30,6 +30,9 @@ class BriefRunRead(BaseModel):
     model: str
     prompt_version: str
     patient_summary: dict = {}
+    summary_status: str = "draft"
+    released_by_name: str | None = None
+    released_at: datetime | None = None
     specialties: list[str] = []
 
     @field_validator("patient_summary", mode="before")
@@ -37,6 +40,11 @@ class BriefRunRead(BaseModel):
     def _null_summary_to_empty(cls, value: object) -> dict:
         """Pre-0018 runs store NULL: treat a missing summary as empty."""
         return value if isinstance(value, dict) else {}
+
+    @field_validator("summary_status", mode="before")
+    @classmethod
+    def _null_status_to_draft(cls, value: object) -> str:
+        return value if isinstance(value, str) and value else "draft"
     error: str = ""
     created_at: datetime
     completed_at: datetime | None = None
@@ -49,6 +57,15 @@ class BriefRunRead(BaseModel):
 class BriefItemUpdate(BaseModel):
     status: str
     edited_text: str | None = None
+
+
+class PatientSummaryUpdate(BaseModel):
+    """Clinician edit of the three overall lines. Editing a released
+    summary returns it to draft."""
+
+    en: str
+    sw: str
+    lg: str
 
 
 class GuidelineRead(BaseModel):

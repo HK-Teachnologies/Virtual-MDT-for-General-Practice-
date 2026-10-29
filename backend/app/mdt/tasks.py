@@ -254,8 +254,9 @@ def summarize_visit(visit_id: str) -> str:
     time so the portal never needs an MDT review to exist.
 
     Idempotent overwrite: re-runs whenever visit content lands (new visit,
-    edited notes, sections, transcriptions). Failures only log — the
-    portal shows "being prepared" and retries on the next read.
+    edited notes, sections, transcriptions). Every write resets to draft
+    and clears any release — only a clinician release shows it to the
+    patient. Failures only log.
     """
     from app.clinics.models import Clinic
     from app.patients.models import Attachment, Patient, Visit, VisitSection
@@ -310,6 +311,83 @@ def summarize_visit(visit_id: str) -> str:
                 for lang in ("en", "sw", "lg")
             }
         visit.patient_summary = summary
+        visit.summary_status = "draft"
+        visit.released_by = None
+        visit.released_at = None
+        db.commit()
+        return "ok"
+
+
+@celery_app.task(name="mdt.prepare_patient_summary")
+def prepare_patient_summary(run_id: str) -> str:
+    """Overall patient message for one brief run, from signed-off items only.
+
+    Only items the doctor approved — or edited (using the edited wording) —
+    reach the prompt. Suggested, rejected and removed points, interactions
+    and overdue checks are never included. The result starts as draft; a
+    clinician release shows it to the patient.
+    """
+    from app.patients.models import Patient
+
+    with SessionLocal() as db:
+        run = db.get(BriefRun, run_id)
+        if run is None:
+            return "missing"
+        patient = db.get(Patient, run.patient_id)
+        identifiers = _patient_identifiers(patient)
+        items = (
+            db.scalars(select(BriefItem).where(BriefItem.run_id == run.id)).all()
+        )
+        signed_off = []
+        for item in items:
+            if item.status == "approved":
+                text = item.concern
+                if item.question:
+                    text += f" Question for the doctor: {item.question}"
+                signed_off.append(
+                    {"specialty": item.specialty, "point": text}
+                )
+            elif item.status == "edited":
+                signed_off.append(
+                    {
+                        "specialty": item.specialty,
+                        "point": item.edited_text or item.concern,
+                    }
+                )
+        if not signed_off:
+            logger.warning("No signed-off items for run %s, skipping summary", run_id)
+            return "empty"
+        payload = [
+            {
+                "specialty": entry["specialty"],
+                "point": redact_pii(entry["point"], identifiers),
+            }
+            for entry in signed_off
+        ]
+        if settings.llm_provider == "echo":
+            summary = {
+                "en": "Echo patient summary.",
+                "sw": "Muhtasari wa mgonjwa wa echo.",
+                "lg": "Echo okusumulula kwomulwadde.",
+            }
+        else:
+            try:
+                raw = llm.complete_json(
+                    system=PATIENT_SUMMARY_SYSTEM,
+                    user=json.dumps({"approved_points": payload}, indent=2),
+                    kind="summary",
+                )
+            except Exception as exc:
+                logger.warning("Patient summary failed, continuing: %s", exc)
+                return "failed"
+            summary = {
+                lang: str(raw.get(lang, ""))
+                for lang in ("en", "sw", "lg")
+            }
+        run.patient_summary = summary
+        run.summary_status = "draft"
+        run.released_by = None
+        run.released_at = None
         db.commit()
         return "ok"
 
@@ -835,79 +913,9 @@ def run_brief(self, run_id: str) -> str:
             run.removed_points = removed_points
             db.commit()
 
-            _set_step(db, run, "summarizing", "Writing the patient summary")
-            # Only items that survived both the verdict and the citation
-            # check reach the patient summary.
-            agreed = [
-                {
-                    "specialty": entry["point"]["specialty"],
-                    "concern": entry["point"]["concern"],
-                    "question": entry["point"]["question"],
-                    "urgent": entry["point"]["urgent"],
-                }
-                for entry in saved_items
-            ]
-            from app.patients.models import Visit as _Visit
-
-            _visits = (
-                db.scalars(
-                    select(_Visit)
-                    .where(_Visit.patient_id == run.patient_id)
-                    .order_by(_Visit.visit_date)
-                ).all()
-            )
-            visit_blurbs = [
-                {
-                    "date": str(v.visit_date),
-                    "notes": redact_pii((v.notes or "")[:500], _identifiers),
-                }
-                for v in _visits
-            ]
-            if settings.llm_provider == "echo":
-                summary = {
-                    "en": "Echo patient summary.",
-                    "sw": "Muhtasari wa mgonjwa wa echo.",
-                    "lg": "Echo okusumulula kwomulwadde.",
-                    "visits": [
-                        {
-                            "date": b["date"],
-                            "en": "Echo visit summary.",
-                            "sw": "Muhtasari wa echo wa ziara.",
-                            "lg": "Echo okusumulula kwa IPS.",
-                        }
-                        for b in visit_blurbs
-                    ],
-                }
-            else:
-                try:
-                    summary = llm.complete_json(
-                        system=PATIENT_SUMMARY_SYSTEM,
-                        user=json.dumps(
-                            {"agreed_points": agreed, "visits": visit_blurbs}, indent=2
-                        ),
-                        kind="summary",
-                    )
-                except Exception as exc:
-                    logger.warning("Patient summary failed, continuing: %s", exc)
-                    summary = {}
-            raw_visits = summary.get("visits", [])
-            run.patient_summary = {
-                "en": str(summary.get("en", "")),
-                "sw": str(summary.get("sw", "")),
-                "lg": str(summary.get("lg", "")),
-                "visits": [
-                    {
-                        "date": str(v.get("date", "")),
-                        "en": str(v.get("en", "")),
-                        "sw": str(v.get("sw", "")),
-                        "lg": str(v.get("lg", "")),
-                    }
-                    for v in (raw_visits if isinstance(raw_visits, list) else [])
-                    if isinstance(v, dict)
-                ],
-            }
-            db.commit()
-
+            # The patient summary is NOT written here: it is prepared on
+            # demand after sign-off (mdt.prepare_patient_summary), only from
+            # approved/edited items, and released by a clinician.
             _set_step(db, run, "ready", "Ready for clinician review")
             run.completed_at = datetime.utcnow()
             db.commit()

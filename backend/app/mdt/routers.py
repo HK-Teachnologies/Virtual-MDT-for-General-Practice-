@@ -1,5 +1,6 @@
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -24,15 +25,29 @@ from app.mdt.schemas import (
     BriefRunRead,
     GuidelineRead,
     GuidelineUpdate,
+    PatientSummaryUpdate,
     TranscriptionRead,
     TranscriptionUpdate,
 )
-from app.mdt.tasks import embed_patient_chunks, index_guideline, run_brief, safe_delay
+from app.mdt.tasks import (
+    embed_patient_chunks,
+    index_guideline,
+    prepare_patient_summary,
+    run_brief,
+    safe_delay,
+)
 from app.patients.models import Patient
 from app.users.models import User
 from app.users.routers import get_current_user
 
 router = APIRouter()
+
+
+def _releaser_name(db: Session, user_id: str | None) -> str | None:
+    if not user_id:
+        return None
+    user = db.get(User, user_id)
+    return (user.full_name or user.email) if user else None
 
 
 def _run_read(db: Session, run: BriefRun) -> BriefRunRead:
@@ -51,6 +66,9 @@ def _run_read(db: Session, run: BriefRun) -> BriefRunRead:
         created_at=run.created_at,
         completed_at=run.completed_at,
         patient_summary=dict(run.patient_summary or {}),
+        summary_status=run.summary_status or "draft",
+        released_by_name=_releaser_name(db, run.released_by),
+        released_at=run.released_at,
         interactions=list(run.interactions or []),
         overdue_checks=list(run.overdue_checks or []),
         items=[
@@ -162,6 +180,75 @@ def sign_off_item(
         selfcheck_reason=item.selfcheck_reason or "",
         cited_labels=list(item.cited_labels or []),
     )
+
+
+@router.post(
+    "/runs/{run_id}/patient-summary", status_code=status.HTTP_202_ACCEPTED
+)
+def prepare_run_summary(
+    run_id: str,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Doctor taps Prepare patient summary after sign-off: draft the
+    overall message from approved/edited items only, in the worker."""
+    run = db.get(BriefRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Brief run not found")
+    if run.status != "ready":
+        raise HTTPException(
+            status_code=400, detail="Sign off the brief before preparing the summary"
+        )
+    safe_delay(prepare_patient_summary, run.id)
+    # Eager/test mode prepared inline above — re-read the final state.
+    db.expire(run)
+    return {"queued": True, "run": _run_read(db, run)}
+
+
+@router.patch("/runs/{run_id}/patient-summary", response_model=BriefRunRead)
+def update_run_summary(
+    run_id: str,
+    data: PatientSummaryUpdate,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Clinician edit of the three overall lines. Editing a released
+    summary returns it to draft."""
+    run = db.get(BriefRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Brief run not found")
+    run.patient_summary = {
+        "en": data.en.strip(),
+        "sw": data.sw.strip(),
+        "lg": data.lg.strip(),
+    }
+    if (run.summary_status or "draft") == "released":
+        run.summary_status = "draft"
+        run.released_by = None
+        run.released_at = None
+    db.commit()
+    db.refresh(run)
+    return _run_read(db, run)
+
+
+@router.post("/runs/{run_id}/patient-summary/release", response_model=BriefRunRead)
+def release_run_summary(
+    run_id: str,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Release a draft overall message to the patient portal."""
+    run = db.get(BriefRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Brief run not found")
+    if not (run.patient_summary or {}).get("en", "").strip():
+        raise HTTPException(status_code=400, detail="No summary to release yet")
+    run.summary_status = "released"
+    run.released_by = current.id
+    run.released_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(run)
+    return _run_read(db, run)
 
 
 def _guideline_read(db: Session, doc: GuidelineDoc) -> GuidelineRead:

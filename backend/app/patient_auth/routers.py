@@ -20,6 +20,7 @@ from app.patient_auth.schemas import OtpRequest, OtpSent, OtpVerify, PatientToke
 from app.patients.models import Patient
 from app.patients.routers import load_patient_detail
 from app.patients.schemas import PatientRead
+from app.users.models import User
 
 router = APIRouter()
 
@@ -173,24 +174,36 @@ class MySummaryVisit(BaseModel):
     sw: str = ""
     lg: str = ""
     ready: bool = False
+    released_by_name: str | None = None
+    released_at: datetime | None = None
 
 
 class MySummary(BaseModel):
     run_id: str | None = None
     completed_at: datetime | None = None
-    # Overall message from the latest ready brief, when a review exists.
+    # Overall message from the latest released brief, when a review exists.
     summary: dict = {}
-    # Per-visit plain-language lines, written at record time — no brief needed.
+    summary_released_by_name: str | None = None
+    summary_released_at: datetime | None = None
+    # Released per-visit lines only — drafts never reach the patient.
     visits: list[MySummaryVisit] = []
+
+
+def _staff_name(db: Session, user_id: str | None) -> str | None:
+    if not user_id:
+        return None
+    user = db.get(User, user_id)
+    return (user.full_name or user.email) if user else None
 
 
 @router.get("/my-summary", response_model=MySummary)
 def read_own_summary(
     current: Patient = Depends(get_current_patient), db: Session = Depends(get_db)
 ):
-    """Portal summary: per-visit lines plus the brief overall when present."""
+    """Portal summary: released per-visit lines plus the released brief
+    overall when present. Drafts are never served — and reading never
+    generates anything, so a visit cannot reach the patient unreviewed."""
     from app.mdt.models import BriefRun
-    from app.mdt.tasks import safe_delay, summarize_visit
     from app.patients.models import Visit
 
     rows = (
@@ -202,11 +215,8 @@ def read_own_summary(
     )
     visits = []
     for visit in rows:
-        stored = dict(visit.patient_summary or {})
-        ready = bool(stored.get("en"))
-        if not ready:
-            # Backfill: older visits predate automatic summaries.
-            safe_delay(summarize_visit, visit.id)
+        released = (visit.summary_status or "draft") == "released"
+        stored = dict(visit.patient_summary or {}) if released else {}
         visits.append(
             MySummaryVisit(
                 visit_id=visit.id,
@@ -214,7 +224,11 @@ def read_own_summary(
                 en=str(stored.get("en", "")),
                 sw=str(stored.get("sw", "")),
                 lg=str(stored.get("lg", "")),
-                ready=ready,
+                ready=released,
+                released_by_name=_staff_name(db, visit.released_by)
+                if released
+                else None,
+                released_at=visit.released_at if released else None,
             )
         )
     run = (
@@ -224,9 +238,16 @@ def read_own_summary(
             .order_by(BriefRun.created_at.desc())
         ).first()
     )
+    overall_released = (
+        run is not None and (run.summary_status or "draft") == "released"
+    )
     return MySummary(
         run_id=run.id if run else None,
         completed_at=run.completed_at if run else None,
-        summary=dict(run.patient_summary or {}) if run else {},
+        summary=dict(run.patient_summary or {}) if overall_released else {},
+        summary_released_by_name=_staff_name(db, run.released_by)
+        if overall_released
+        else None,
+        summary_released_at=run.released_at if overall_released else None,
         visits=visits,
     )

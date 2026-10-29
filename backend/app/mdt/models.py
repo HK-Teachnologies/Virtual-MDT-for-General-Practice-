@@ -65,6 +65,15 @@ class BriefRun(Base):
     # Patient-safe summary of the visit ({en, sw, lg}), written for the
     # patient portal. Never the raw brief: plain words, no doses.
     patient_summary: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Release gate: clinician-reviewed text only. Every generated or
+    # edited summary starts as draft; the portal serves released ones.
+    summary_status: Mapped[str] = mapped_column(
+        String(16), default="draft", server_default="draft"
+    )
+    released_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    released_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     error: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(

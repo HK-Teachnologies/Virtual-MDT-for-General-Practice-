@@ -1,6 +1,6 @@
 import re
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -21,6 +21,7 @@ from app.patients.schemas import (
     SectionRead,
     SectionUpdate,
     VisitRead,
+    VisitSummaryUpdate,
     VisitUpdate,
 )
 from app.mdt.models import BriefItem, BriefRun, PatientChunk, Transcription
@@ -107,6 +108,15 @@ def list_patients(
     return patients
 
 
+def _release_names(db: Session, user_ids: set[str]) -> dict[str, str]:
+    """Staff full names for release labels; unknown ids stay blank."""
+    ids = {i for i in user_ids if i}
+    if not ids:
+        return {}
+    rows = db.scalars(select(User).where(User.id.in_(ids))).all()
+    return {u.id: (u.full_name or u.email) for u in rows}
+
+
 def load_patient_detail(db: Session, patient_id: str) -> Patient:
     """Full patient record with visits and attachments, or 404."""
     patient = db.scalar(select(Patient).where(Patient.id == patient_id))
@@ -119,24 +129,31 @@ def load_patient_detail(db: Session, patient_id: str) -> Patient:
             .order_by(Visit.visit_date.desc())
         ).all()
     )
+    names = _release_names(db, {v.released_by for v in visits if v.released_by})
     for visit in visits:
-        visit.attachments = (
-            db.scalars(select(Attachment).where(Attachment.visit_id == visit.id)).all()
-        )
-        _with_transcriptions(db, visit.attachments)
-        visit.clinic = (
-            db.get(Clinic, visit.clinic_id) if visit.clinic_id else None
-        )
-        visit.sections = (
-            db.scalars(
-                select(VisitSection)
-                .where(VisitSection.visit_id == visit.id)
-                .order_by(VisitSection.created_at)
-            ).all()
-        )
+        _populate_visit(db, visit)
+        visit.released_by_name = names.get(visit.released_by or "")
     patient.visits = visits
     patient.visit_count = len(visits)
     return patient
+
+
+def _populate_visit(db: Session, visit: Visit) -> None:
+    """Nested record shape for one visit (attachments, clinic, sections)."""
+    visit.attachments = (
+        db.scalars(select(Attachment).where(Attachment.visit_id == visit.id)).all()
+    )
+    _with_transcriptions(db, visit.attachments)
+    visit.clinic = (
+        db.get(Clinic, visit.clinic_id) if visit.clinic_id else None
+    )
+    visit.sections = (
+        db.scalars(
+            select(VisitSection)
+            .where(VisitSection.visit_id == visit.id)
+            .order_by(VisitSection.created_at)
+        ).all()
+    )
 
 
 @router.get("/{patient_id}", response_model=PatientRead)
@@ -501,4 +518,59 @@ def update_visit(
             .order_by(VisitSection.created_at)
         ).all()
     )
+    return visit
+
+
+def _name_visit(db: Session, visit: Visit) -> None:
+    names = _release_names(db, {visit.released_by} if visit.released_by else set())
+    visit.released_by_name = names.get(visit.released_by or "")
+
+
+@router.patch("/visits/{visit_id}/summary", response_model=VisitRead)
+def update_visit_summary(
+    visit_id: str,
+    data: VisitSummaryUpdate,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Clinician edit of the three patient-facing lines. Editing a
+    released summary returns it to draft — unreviewed text never shows."""
+    visit = db.get(Visit, visit_id)
+    if visit is None:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    visit.patient_summary = {
+        "en": data.en.strip(),
+        "sw": data.sw.strip(),
+        "lg": data.lg.strip(),
+    }
+    if (visit.summary_status or "draft") == "released":
+        visit.summary_status = "draft"
+        visit.released_by = None
+        visit.released_at = None
+    db.commit()
+    db.refresh(visit)
+    _populate_visit(db, visit)
+    _name_visit(db, visit)
+    return visit
+
+
+@router.post("/visits/{visit_id}/release", response_model=VisitRead)
+def release_visit_summary(
+    visit_id: str,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Release a draft summary to the patient portal, recording who and when."""
+    visit = db.get(Visit, visit_id)
+    if visit is None:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    if not (visit.patient_summary or {}).get("en", "").strip():
+        raise HTTPException(status_code=400, detail="No summary to release yet")
+    visit.summary_status = "released"
+    visit.released_by = current.id
+    visit.released_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(visit)
+    _populate_visit(db, visit)
+    _name_visit(db, visit)
     return visit

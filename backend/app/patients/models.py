@@ -57,8 +57,16 @@ class Visit(Base):
     )
     # Patient-safe summary of this visit ({en, sw, lg}), written at record
     # time so the portal never needs an MDT review to exist. Plain words,
-    # no doses, never the raw notes.
+    # no doses, never the raw notes. Draft until a clinician releases it.
     patient_summary: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Release gate: the portal serves only released summaries.
+    summary_status: Mapped[str] = mapped_column(
+        String(16), default="draft", server_default="draft"
+    )
+    released_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    released_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
