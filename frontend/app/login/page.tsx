@@ -29,10 +29,12 @@ export default function Login() {
   return (
     <div className="login-split">
       <form className="login-form" onSubmit={submit}>
-        <h1>Sign in</h1>
+        <h1>Virtual Multidisciplinary Team (MDT)</h1>
         <p className="muted">
-          Use your Virtual MDT account.
+          A specialist team for every doctor, in every patient&apos;s language.
         </p>
+        <h2>Sign in</h2>
+        <p className="muted">Use your Virtual MDT account.</p>
         <div className="field">
           <label htmlFor="email">Email</label>
           <input

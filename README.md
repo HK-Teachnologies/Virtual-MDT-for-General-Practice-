@@ -1,8 +1,10 @@
-# Virtual MDT for General Practice
+# Virtual Multidisciplinary Team (MDT) for General Practice
+
+A specialist team for every doctor, in every patient's language.
 
 Live deployment: https://virtualmdt.hk-technologies.net
 
-A virtual multidisciplinary team (MDT) for general practice: a medical officer at a
+A medical officer at a district hospital or Health Centre IV
 district hospital or Health Centre IV photographs or dictates a complex case, and an
 AI agent prepares a structured, evidence-cited MDT brief — per-specialty concerns,
 drug-interaction flags, overdue screening checks, and questions for referral —
