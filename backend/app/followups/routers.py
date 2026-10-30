@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.followups.models import FollowUp, PatientQuestion
 from app.followups.schemas import (
+    AnswerTranslation,
     FollowUpAsk,
     FollowUpRead,
     PatientQuestionAnswer,
@@ -183,10 +185,47 @@ def _read_question(question: PatientQuestion, db: Session) -> PatientQuestionRea
         question=question.question,
         question_original=question.question_original or "",
         answer_text=question.answer_text or "",
+        answer_i18n=dict(question.answer_i18n or {}),
         answerer_name=answerer.full_name or answerer.email if answerer else "",
         status=question.status,
         created_at=question.created_at,
         answered_at=question.answered_at,
+    )
+
+
+ANSWER_I18N_SYSTEM = """Translate the clinician's answer for a patient into
+English, Kiswahili, and Luganda. Keep the medical meaning exactly; use short
+plain words a patient understands. Do not add advice and do not change the
+instructions. Return JSON: {"en": "...", "sw": "...", "lg": "..."}."""
+
+
+class TranslateDraft(BaseModel):
+    text: str
+
+
+@router.post("/patient-questions/translate", response_model=AnswerTranslation)
+def translate_answer_draft(
+    data: TranslateDraft,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Machine-translate an answer draft to EN/SW/LG for the doctor to check
+    and edit before sending — the same release pattern as summaries."""
+    text = data.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Nothing to translate")
+    try:
+        raw = llm.complete_json(
+            system=ANSWER_I18N_SYSTEM,
+            user=text,
+            kind="answer_i18n",
+        )
+    except llm.LLMError as exc:
+        raise HTTPException(status_code=502, detail=f"Translation failed: {exc}")
+    return AnswerTranslation(
+        en=text,
+        sw=str(raw.get("sw", "") or "").strip() or text,
+        lg=str(raw.get("lg", "") or "").strip() or text,
     )
 
 
@@ -301,6 +340,9 @@ def answer_patient_question(
     if not data.answer_text.strip():
         raise HTTPException(status_code=400, detail="Answer cannot be empty")
     question.answer_text = data.answer_text.strip()
+    sw = data.answer_sw.strip() or question.answer_text
+    lg = data.answer_lg.strip() or question.answer_text
+    question.answer_i18n = {"en": question.answer_text, "sw": sw, "lg": lg}
     question.answered_by = current.id
     question.status = "answered"
     question.answered_at = datetime.now(timezone.utc)

@@ -221,17 +221,39 @@ export async function answerPatientQuestion(
   token: string,
   questionId: string,
   answerText: string,
+  answerSw = '',
+  answerLg = '',
 ): Promise<ApiPatientQuestion> {
   const res = await fetch(
     `${API_BASE}/api/followups/patient-questions/${questionId}/answer`,
     {
       method: 'POST',
       headers: authHeaders(token, { 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ answer_text: answerText }),
+      body: JSON.stringify({
+        answer_text: answerText,
+        answer_sw: answerSw,
+        answer_lg: answerLg,
+      }),
     },
   );
   if (!res.ok) throw new Error(await readError(res));
   return (await res.json()) as ApiPatientQuestion;
+}
+
+export async function translateAnswerDraft(
+  token: string,
+  text: string,
+): Promise<{ en: string; sw: string; lg: string }> {
+  const res = await fetch(
+    `${API_BASE}/api/followups/patient-questions/translate`,
+    {
+      method: 'POST',
+      headers: authHeaders(token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ text }),
+    },
+  );
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as { en: string; sw: string; lg: string };
 }
 
 export async function updatePatient(

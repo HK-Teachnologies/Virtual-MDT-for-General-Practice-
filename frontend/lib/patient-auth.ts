@@ -3,7 +3,6 @@ import type {
   ApiFollowUp,
   ApiPatient,
   ApiPatientQuestion,
-  ApiPortalChatReply,
   MySummary,
 } from './types';
 
@@ -88,25 +87,6 @@ export async function answerQuestion(
   });
   if (!res.ok) throw new Error(await readError(res));
   return (await res.json()) as ApiFollowUp;
-}
-
-export async function askPortalChat(
-  token: string,
-  message: string,
-  lang: string,
-  audio: File | null,
-): Promise<ApiPortalChatReply> {
-  const form = new FormData();
-  form.append('message', message);
-  form.append('lang', lang);
-  if (audio) form.append('audio', audio);
-  const res = await fetch(`${API_BASE}/api/patient-auth/chat`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
-  });
-  if (!res.ok) throw new Error(await readError(res));
-  return (await res.json()) as ApiPortalChatReply;
 }
 
 export async function askDoctor(

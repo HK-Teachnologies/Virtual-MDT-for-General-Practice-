@@ -67,81 +67,7 @@ def _portal_token(client: TestClient, monkeypatch, tag: str) -> str:
     return ok.json()["access_token"]
 
 
-def test_portal_chat_guides_without_diagnosing(
-    client: TestClient, monkeypatch
-):
-    """Patient guide chat: plain answers from released content, urgent
-    redirect for danger signs, voice notes transcribed first."""
-    from .conftest import admin_token
-
-    token = _portal_token(client, monkeypatch, "777777")
-    ph = {"Authorization": f"Bearer {token}"}
-
-    asked = client.post(
-        "/api/patient-auth/chat",
-        data={"message": "Which clinic should I visit for a headache?", "lang": "en"},
-        headers=ph,
-    )
-    assert asked.status_code == 200, asked.text
-    body = asked.json()
-    assert body["reply"] == "Echo clinic guide reply."
-    assert body["urgent"] is False
-    assert body["lang"] == "en"
-
-    urgent = client.post(
-        "/api/patient-auth/chat",
-        data={"message": "There is heavy bleeding", "lang": "sw"},
-        headers=ph,
-    )
-    assert urgent.status_code == 200, urgent.text
-    assert urgent.json()["urgent"] is True
-    assert "dharura" in urgent.json()["reply"]
-
-    urgent_lg = client.post(
-        "/api/patient-auth/chat",
-        data={"message": "There is heavy bleeding", "lang": "lg"},
-        headers=ph,
-    )
-    assert urgent_lg.status_code == 200, urgent_lg.text
-    assert urgent_lg.json()["urgent"] is True
-    assert "akabenje" in urgent_lg.json()["reply"]
-
-    wav = (
-        b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00"
-        b"\x40\x1f\x00\x00\x40\x1f\x00\x00\x01\x00\x08\x00data\x00\x00\x00\x00"
-    )
-    voice = client.post(
-        "/api/patient-auth/chat",
-        data={"lang": "lg"},
-        files=[("audio", ("q.wav", wav, "audio/wav"))],
-        headers=ph,
-    )
-    assert voice.status_code == 200, voice.text
-    assert voice.json()["question_original"] == "Echo transcript."
-    assert voice.json()["reply"] == "Echo clinic guide reply."
-
-    empty = client.post(
-        "/api/patient-auth/chat", data={"message": " ", "lang": "en"}, headers=ph
-    )
-    assert empty.status_code == 400
-
-    bad_lang = client.post(
-        "/api/patient-auth/chat", data={"message": "hi", "lang": "xx"}, headers=ph
-    )
-    assert bad_lang.status_code == 400
-
-    staff = client.post(
-        "/api/patient-auth/chat",
-        data={"message": "hi", "lang": "en"},
-        headers={"Authorization": f"Bearer {admin_token(client)}"},
-    )
-    assert staff.status_code in (401, 403)
-
-    anon = client.post("/api/patient-auth/chat", data={"message": "hi"})
-    assert anon.status_code in (401, 403)
-
-
-def test_answer_notification_is_signin_nudge_only(client: TestClient, monkeypatch):
+def test_answer_notification_is_signin_nudge_only(client: TestClient):
     """Answer email: sign-in nudge with no clinical content; silent in dev."""
     from app.patient_auth import routers as pa
 
@@ -163,9 +89,14 @@ def test_answer_notification_is_signin_nudge_only(client: TestClient, monkeypatc
         def send_message(self, message):
             captured["message"] = message
 
-    monkeypatch.setattr(pa.smtplib, "SMTP", FakeSMTP)
-    monkeypatch.setattr(pa.settings, "smtp_host", "mail.example.com")
-    assert pa.send_answer_notification("patient@example.com") is True
+    real_smtp, real_host = pa.smtplib.SMTP, pa.settings.smtp_host
+    pa.smtplib.SMTP = FakeSMTP  # type: ignore[assignment]
+    pa.settings.smtp_host = "mail.example.com"
+    try:
+        assert pa.send_answer_notification("patient@example.com") is True
+    finally:
+        pa.smtplib.SMTP = real_smtp  # type: ignore[assignment]
+        pa.settings.smtp_host = real_host
     message = captured["message"]
     assert message["To"] == "patient@example.com"
     assert "answered" in message["Subject"].lower()
@@ -173,8 +104,11 @@ def test_answer_notification_is_signin_nudge_only(client: TestClient, monkeypatc
     assert "Sign in" in body
     assert "Monday at 9" not in body
 
-    monkeypatch.setattr(pa.settings, "smtp_host", "")
-    assert pa.send_answer_notification("patient@example.com") is False
+    pa.settings.smtp_host = ""
+    try:
+        assert pa.send_answer_notification("patient@example.com") is False
+    finally:
+        pa.settings.smtp_host = real_host
 
 
 def test_otp_flow(client: TestClient, monkeypatch):

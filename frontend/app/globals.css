@@ -392,6 +392,13 @@ input:focus {
   font-weight: 600;
 }
 
+.notice {
+  border-left: 4px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  padding: 0.6rem 0.8rem;
+  border-radius: 0 6px 6px 0;
+}
+
 .link-btn {
   background: none;
   border: none;

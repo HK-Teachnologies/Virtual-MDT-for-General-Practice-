@@ -33,14 +33,17 @@ Hackathon (26 Oct – 4 Nov 2026).
 - Guideline library: PDF upload, page-aware indexing, verified page citations.
 - Patient portal (OTP login) with release-gated AI visit summaries
   (English/Kiswahili/Luganda), doctor–patient follow-up Q&A in all three
-  languages, a non-diagnostic guide chat, patient-initiated Ask the doctor,
-  and releasable referral letters, clinics master, admin
+  languages, patient-initiated Ask the doctor, and releasable referral
+  letters, clinics master, admin
   user/specialty management, mobile drawer navigation, separate staff and
   patient in-app guides, demo data seeding. Ask-the-doctor answers are open to every clinical role
   (the non-clinical normal_user role is read-only); saving an answer emails
   the patient a sign-in nudge when SMTP is configured — the Q&A itself stays
-  in the portal. Danger signs in the guide chat skip the model and return a
-  fixed go-to-a-facility-now reply in English, Kiswahili, and Luganda.
+  in the portal. There is no AI chat answering patients: patients ask
+  questions in their own language; a clinician answers every one. The Ask
+  the doctor panel carries a fixed safety notice (English, Kiswahili,
+  Luganda): the doctor replies in the portal, and danger signs mean going
+  to the nearest health facility now.
 
 ![MDT brief for Demo Patient A: sourced points, safety panels, and the self-check audit](docs/brief-hero.png)
 
@@ -82,7 +85,7 @@ output for the test suite — no keys, no network.
 | Brief plan, draft, self-check | Muse Spark (`LLM_MODEL`, default `openai/muse-spark-1.3`) | JSON-mode calls in `mdt.run_brief`; prompts in `backend/app/llm/prompts.py` |
 | Photo reads | Muse Spark vision (`LLM_VISION_MODEL`, falls back to `LLM_MODEL`) | Transcribes slips and books; every read needs staff verification |
 | Dictation and voice notes | Muse Voice Transcribe (`LLM_TRANSCRIBE_MODEL`, default `muse-voice-transcribe-1.0`) | Consults in English as-is; patient answers in Luganda/Kiswahili/English become English text with the original kept |
-| Visit and patient summaries, question translation | Muse Spark | Trilingual summaries; overall message from signed-off points only |
+| Visit and patient summaries, question/answer translation | Muse Spark | Trilingual summaries; overall message from signed-off points only; answer drafts machine-translated for the doctor to check and edit |
 | Embeddings | bge-base-en-v1.5 on the self-hosted `model_server/` (or `LLM_EMBED_MODEL` via API) | Patient and guideline vectors; `LLM_EMBED_DIM` must match (768) |
 | Guideline reranking | ms-marco-MiniLM-L-6-v2 cross-encoder on `model_server/` | Top 4 of 20 candidates per query; falls back to vector order if down |
 | Deterministic, no model | — | Referral letters, PDF/text extraction, PII redaction |

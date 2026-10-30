@@ -527,6 +527,68 @@ def test_ask_doctor_clinical_roles_answer_patients_get_nudge(
     assert sent == ["followup-449450@example.com"]
 
 
+def test_answer_translation_preview_and_release(client: TestClient, monkeypatch):
+    """Answer flow: machine draft translation, clinician edits, all three
+    languages stored; the list and detail carry the open-question count."""
+    headers = _headers(client)
+    patient_id, ptoken = _patient_token(client, "449451", monkeypatch)
+    ph = {"Authorization": f"Bearer {ptoken}"}
+    asked = client.post(
+        "/api/followups/patient-questions",
+        data={"text": "Can I take my pills with food?"},
+        headers=ph,
+    )
+    assert asked.status_code == 201, asked.text
+    qid = asked.json()["id"]
+
+    listed = client.get("/api/patients", headers=headers)
+    assert listed.status_code == 200, listed.text
+    row = next(p for p in listed.json() if p["id"] == patient_id)
+    assert row["open_question_count"] == 1
+    detail = client.get(f"/api/patients/{patient_id}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["open_question_count"] == 1
+
+    preview = client.post(
+        "/api/followups/patient-questions/translate",
+        json={"text": "Yes — take them with breakfast."},
+        headers=headers,
+    )
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["en"] == "Yes — take them with breakfast."
+    assert preview.json()["sw"] == "Jibu la echo."
+    assert preview.json()["lg"] == "Eddamu lya echo."
+
+    empty_preview = client.post(
+        "/api/followups/patient-questions/translate",
+        json={"text": "  "},
+        headers=headers,
+    )
+    assert empty_preview.status_code == 400
+
+    answered = client.post(
+        f"/api/followups/patient-questions/{qid}/answer",
+        json={
+            "answer_text": "Yes — take them with breakfast.",
+            "answer_sw": "Ndiyo — chukua na kifungua kinywa.",
+            "answer_lg": "",
+        },
+        headers=headers,
+    )
+    assert answered.status_code == 200, answered.text
+    stored = answered.json()
+    assert stored["answer_i18n"]["sw"] == "Ndiyo — chukua na kifungua kinywa."
+    # Blank Luganda falls back to the English text.
+    assert stored["answer_i18n"]["lg"] == "Yes — take them with breakfast."
+
+    listed2 = client.get("/api/patients", headers=headers)
+    row2 = next(p for p in listed2.json() if p["id"] == patient_id)
+    assert row2["open_question_count"] == 0
+
+    seen = client.get("/api/followups/patient-questions/mine", headers=ph)
+    assert seen.json()[0]["answer_i18n"]["sw"] == "Ndiyo — chukua na kifungua kinywa."
+
+
 def test_referral_letter_includes_attachment_reads(
     client: TestClient, tmp_path, monkeypatch
 ):

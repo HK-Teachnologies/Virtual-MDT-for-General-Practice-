@@ -56,6 +56,9 @@ class PatientQuestion(Base):
     # staff can check the English. Empty for typed questions.
     question_original: Mapped[str] = mapped_column(Text, default="")
     answer_text: Mapped[str] = mapped_column(Text, default="")
+    # Clinician-checked translations of the answer ({en, sw, lg}), edited
+    # before sending the same way summaries are released.
+    answer_i18n: Mapped[dict] = mapped_column(JSON, default=dict)
     answered_by: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id"), nullable=True
     )

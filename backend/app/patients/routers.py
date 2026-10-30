@@ -37,7 +37,7 @@ from app.mdt.tasks import (
     summarize_visit,
     transcribe_attachment,
 )
-from app.followups.models import FollowUp
+from app.followups.models import FollowUp, PatientQuestion
 from app.patient_auth.models import OtpCode
 from app.reviews.models import Review, ReviewRecipient, ReviewResponse
 from app.users.models import User
@@ -110,6 +110,7 @@ def list_patients(
     ids = [patient.id for patient, _ in rows]
     open_counts: dict[str, int] = {}
     unverified_counts: dict[str, int] = {}
+    open_question_counts: dict[str, int] = {}
     if ids:
         open_counts = dict(
             db.execute(
@@ -127,11 +128,22 @@ def list_patients(
                 .group_by(Visit.patient_id)
             ).all()
         )
+        open_question_counts = dict(
+            db.execute(
+                select(PatientQuestion.patient_id, func.count(PatientQuestion.id))
+                .where(
+                    PatientQuestion.patient_id.in_(ids),
+                    PatientQuestion.status == "open",
+                )
+                .group_by(PatientQuestion.patient_id)
+            ).all()
+        )
     patients = []
     for patient, visit_count in rows:
         patient.visit_count = visit_count
         patient.open_review_count = open_counts.get(patient.id, 0)
         patient.unverified_read_count = unverified_counts.get(patient.id, 0)
+        patient.open_question_count = open_question_counts.get(patient.id, 0)
         patients.append(patient)
     return patients
 
@@ -174,6 +186,15 @@ def load_patient_detail(db: Session, patient_id: str) -> Patient:
         db.scalar(
             select(func.count(Review.id)).where(
                 Review.patient_id == patient_id, Review.status != "closed"
+            )
+        )
+        or 0
+    )
+    patient.open_question_count = (
+        db.scalar(
+            select(func.count(PatientQuestion.id)).where(
+                PatientQuestion.patient_id == patient_id,
+                PatientQuestion.status == "open",
             )
         )
         or 0

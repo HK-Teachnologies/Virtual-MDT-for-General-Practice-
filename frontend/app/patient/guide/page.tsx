@@ -19,8 +19,8 @@ export default function PatientGuide() {
       <h1>How to use your health portal</h1>
       <p className="muted">
         This portal shows your own record. It is read-only: you can look, but
-        you cannot change anything. The clinic guide chat and Ask the doctor
-        answers work in English, Kiswahili, and Luganda.
+        you cannot change anything. Ask the doctor answers arrive in English,
+        Kiswahili, or Luganda.
       </p>
 
       <Step n="1" title="Sign in">
@@ -42,54 +42,46 @@ export default function PatientGuide() {
         </p>
       </Step>
 
-      <Step n="3" title="Ask the clinic guide chat">
+      <Step n="3" title="Ask the doctor">
         <p>
-          The <strong>clinic guide chat</strong> answers simple questions from
-          your shared summaries and prescriptions: which clinic to visit for a
-          concern, or what your medication note says (name, dose, timing as
-          written). You can type or record a voice note in English, Kiswahili,
-          or Luganda. It is not a doctor: it never diagnoses, never prescribes,
-          and never changes your medicine. Anything it cannot answer from your
-          record, it will send you to your doctor instead.
+          Under <strong>Ask the doctor</strong> you can send your clinic a
+          question by text or voice note in English, Kiswahili, or Luganda —
+          for example to clarify your medication. No computer answers you: a
+          clinician reads every question and writes an answer, which appears
+          here in the portal, in your language. If your record has an email
+          address, we also email you a nudge to come and read it. Your
+          question and the answer stay inside the portal; they are never
+          emailed.
         </p>
-      </Step>
-
-      <Step n="4" title="In an emergency, do not wait here">
         <p>
-          If you have danger signs — heavy bleeding, trouble breathing, chest
-          pain, fainting, seizure, poisoning, a broken bone, labour, the worst
-          headache of your life, or sudden vision loss — the chat will tell you
-          to go to a health facility immediately. Do not wait for any other
-          reply:
+          In an emergency, do not wait for an answer. If you feel very unwell,
+          have bleeding, chest pain, difficulty breathing, a seizure, or
+          thoughts of harming yourself, go to the nearest health facility now:
         </p>
         <ul>
           <li>
-            What you describe can be an emergency. Go to the nearest health
-            facility or emergency unit now — do not wait for a reply here.
+            Your doctor will reply here, usually within a few days. If you feel
+            very unwell, have bleeding, chest pain, difficulty breathing, a
+            seizure, or thoughts of harming yourself, go to the nearest health
+            facility now.
           </li>
           <li>
-            Dalili ulizoeleza zinaweza kuwa za dharura. Nenda kwenye kituo cha
-            afya kilicho karibu nawe sasa hivi — usisubiri jibu hapa.
+            Daktari wako atajibu hapa, kwa kawaida ndani ya siku chache. Ikiwa
+            unajisikia vibaya sana, unavuja damu, una maumivu ya kifua,
+            unapumua kwa shida, una kifafa, au una mawazo ya kujidhuru, nenda
+            kwenye kituo cha afya kilicho karibu naawe sasa hivi.
           </li>
           <li>
-            Ebyo by&apos;ogambye biyinza okuba eby&apos;akabenje. Genda mangu ku
-            ddwaliro erisinga okuba okumpi naawe — tolindirira kuddamu wano.
+            Musawo wo ajja kuddamu wano, ebiseera ebisinga mu nnaku ntono.
+            Bw&apos;owulira obulwadde obw&apos;amaanyi, olugulu
+            olw&apos;omusaayi, obulumi mu kifuba, obuzibu mu kussa, ekikolo, oba
+            endowooza ez&apos;okwetta, genda ku ddwaliro erisinga okuba okumpi
+            naawe kati.
           </li>
         </ul>
       </Step>
 
-      <Step n="5" title="Ask the doctor">
-        <p>
-          Under <strong>Ask the doctor</strong> you can send your clinic a
-          question by text or voice note — for example to clarify your
-          medication. A clinician reads it on your record and writes an answer,
-          which appears here in the portal. If your record has an email
-          address, we also email you a nudge to come and read it. Your question
-          and the answer stay inside the portal; they are never emailed.
-        </p>
-      </Step>
-
-      <Step n="6" title="Referral letters">
+      <Step n="4" title="Referral letters">
         <p>
           If your doctor refers you, the letter appears here. Open it and show
           it at the health facility you visit — even if it is not the one named

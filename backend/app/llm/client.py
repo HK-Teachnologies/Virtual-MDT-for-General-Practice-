@@ -71,11 +71,13 @@ _ECHO = {
         "sw": "Swali la echo.",
         "lg": "Ekibuuzo kya echo.",
     },
+    "answer_i18n": {
+        "en": "Echo answer.",
+        "sw": "Jibu la echo.",
+        "lg": "Eddamu lya echo.",
+    },
     "translate_en": {
         "en": "Echo transcription in English.",
-    },
-    "portal_chat": {
-        "reply": "Echo clinic guide reply.",
     },
 }
 

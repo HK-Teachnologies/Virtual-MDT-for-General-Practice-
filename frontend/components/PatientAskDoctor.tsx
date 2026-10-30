@@ -5,10 +5,20 @@ import VoiceRecorder from './VoiceRecorder';
 import { askDoctor, getPatientToken } from '../lib/patient-auth';
 import type { ApiPatientQuestion } from '../lib/types';
 
+// Fixed safety notice, shown in the patient's chosen language. The Kiswahili
+// and Luganda wordings are drafts — have native speakers check them.
+const NOTICE: Record<'en' | 'sw' | 'lg', string> = {
+  en: 'Your doctor will reply here, usually within a few days. If you feel very unwell, have bleeding, chest pain, difficulty breathing, a seizure, or thoughts of harming yourself, go to the nearest health facility now.',
+  sw: 'Daktari wako atajibu hapa, kwa kawaida ndani ya siku chache. Ikiwa unajisikia vibaya sana, unavuja damu, una maumivu ya kifua, unapumua kwa shida, una kifafa, au una mawazo ya kujidhuru, nenda kwenye kituo cha afya kilicho karibu nawe sasa hivi.',
+  lg: 'Musawo wo ajja kuddamu wano, ebiseera ebisinga mu nnaku ntono. Bw’owulira obulwadde obw’amaanyi, olugulu olw’omusaayi, obulumi mu kifuba, obuzibu mu kussa, ekikolo, oba endowooza ez’okwetta, genda ku ddwaliro erisinga okuba okumpi naawe kati.',
+};
+
 export default function PatientAskDoctor({
   initial,
+  lang,
 }: {
   initial: ApiPatientQuestion[];
+  lang: 'en' | 'sw' | 'lg';
 }) {
   const [items, setItems] = useState(initial);
   const [draft, setDraft] = useState('');
@@ -18,6 +28,10 @@ export default function PatientAskDoctor({
   const [error, setError] = useState<string | null>(null);
   const token = getPatientToken();
   const open = items.filter((q) => q.status === 'open');
+
+  function answerIn(q: ApiPatientQuestion): string {
+    return q.answer_i18n?.[lang]?.trim() || q.answer_text;
+  }
 
   async function send() {
     if (!token || busy || (!draft.trim() && !audio)) return;
@@ -43,9 +57,10 @@ export default function PatientAskDoctor({
       <h2>
         Ask the doctor{open.length > 0 ? ` (${open.length} waiting for an answer)` : ''}
       </h2>
+      <p className="notice">{NOTICE[lang]}</p>
       <p className="muted">
-        A real clinician reads these and answers on your record. Type below, or
-        record a voice note in English, Kiswahili, or Luganda.
+        A clinician reads every question and answers on your record. Type below,
+        or record a voice note in English, Kiswahili, or Luganda.
       </p>
       {items.map((q) => (
         <div key={q.id} className="brief-item">
@@ -60,7 +75,7 @@ export default function PatientAskDoctor({
           )}
           {q.answer_text ? (
             <p>
-              <strong>{q.answerer_name || 'Doctor'} answered:</strong> {q.answer_text}
+              <strong>{q.answerer_name || 'Doctor'} answered:</strong> {answerIn(q)}
             </p>
           ) : (
             <p className="muted">Waiting for the doctor&apos;s answer.</p>

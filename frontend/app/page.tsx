@@ -202,6 +202,14 @@ export default function Home() {
                       </span>
                     </p>
                   )}
+                  {(p.open_question_count ?? 0) > 0 && (
+                    <p>
+                      <span className="badge badge-pending">
+                        {p.open_question_count} question{p.open_question_count === 1 ? '' : 's'}{' '}
+                        waiting
+                      </span>
+                    </p>
+                  )}
                   <p>{p.phone ?? 'No phone on record'}</p>
                   <p>{p.email ?? 'No email on record'}</p>
                   <p>{p.district ?? 'No district on record'}</p>

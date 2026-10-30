@@ -200,17 +200,22 @@ export default function Guide() {
           are translated automatically: the patient reads and answers in English,
           Kiswahili, or Luganda, and answers arrive back as English text with the
           original words kept behind a <strong>Show original</strong> link.
-          It works the other way too: patients can <strong>Ask the doctor</strong>{' '}
-          from the portal (text or voice note, answered on this record under{' '}
-          <strong>Questions from the patient</strong>). Every clinical role can
+          Patients can <strong>Ask the doctor</strong> from the portal — text or
+          voice note in their own language — and a clinician answers every one
+          on this record under <strong>Questions from the patient</strong>.
+          Open questions list first with how long each has waited, and the
+          patient card carries a badge while any wait. Every clinical role can
           answer — nurses, midwives, pharmacists included — while the
-          non-clinical normal_user role sees the inbox read-only. When an
-          answer is saved the patient gets an email nudge to sign in and read
-          it (SMTP configured); the question and answer themselves never leave
-          the portal. A non-diagnostic{' '}
-          <strong>clinic guide chat</strong> answers simple questions from
-          released summaries and prescriptions — pointing to the right clinic,
-          never diagnosing.
+          non-clinical normal_user role sees the inbox read-only. Type the
+          answer in English, tap <strong>Translate to Kiswahili &amp;
+          Luganda</strong>, check and edit both translations, then send: the
+          patient reads the answer in their own language. When an answer is
+          saved the patient gets an email nudge to sign in and read it (SMTP
+          configured); the question and answer themselves never leave the
+          portal. There is no AI chat answering patients — the portal&apos;s
+          Ask panel only carries a fixed safety notice (English, Kiswahili,
+          Luganda) telling them the doctor replies here and danger signs mean
+          going to a health facility now.
         </p>
       </Step>
 

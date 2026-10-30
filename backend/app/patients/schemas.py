@@ -136,3 +136,5 @@ class PatientRead(BaseModel):
     # machine reads waiting for staff verification.
     open_review_count: int = 0
     unverified_read_count: int = 0
+    # Patient questions still waiting for a staff answer.
+    open_question_count: int = 0

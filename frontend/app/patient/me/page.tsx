@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import PatientAskDoctor from '../../../components/PatientAskDoctor';
-import PatientChat from '../../../components/PatientChat';
 import PatientQuestions from '../../../components/PatientQuestions';
 import PatientSummary, { type SummaryLang } from '../../../components/PatientSummary';
 import type {
@@ -113,8 +112,7 @@ export default function PatientPortal() {
         </section>
       )}
       <PatientQuestions initial={questions} lang={lang} />
-      <PatientChat lang={lang} />
-      <PatientAskDoctor initial={asked} />
+      <PatientAskDoctor initial={asked} lang={lang} />
       <button className="btn" type="button" onClick={signOut}>
         Sign out
       </button>

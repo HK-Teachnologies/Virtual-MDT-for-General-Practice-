@@ -52,18 +52,11 @@ export interface ApiPatientQuestion {
   question: string;
   question_original: string;
   answer_text: string;
+  answer_i18n: Record<string, string>;
   answerer_name: string;
   status: string;
   created_at: string;
   answered_at: string | null;
-}
-
-export interface ApiPortalChatReply {
-  reply: string;
-  lang: string;
-  question_original: string;
-  question_en: string;
-  urgent: boolean;
 }
 
 export interface MySummaryVisit {
@@ -339,6 +332,7 @@ export interface ApiPatient {
   full_name: string;
   open_review_count: number;
   unverified_read_count: number;
+  open_question_count: number;
   date_of_birth: string | null;
   sex: string | null;
   phone: string | null;
