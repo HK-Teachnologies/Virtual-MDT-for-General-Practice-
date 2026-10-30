@@ -82,6 +82,49 @@ def test_section_flow(client: TestClient):
     assert anon.status_code == 401
 
 
+def test_visit_attachments_upload(client: TestClient, tmp_path, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    headers = _headers(client)
+    patient_id = _patient(client, "013")
+    visit_id = _visit(client, patient_id)
+
+    upload = client.post(
+        f"/api/patients/visits/{visit_id}/attachments",
+        files=[("files", ("result-slip.jpg", b"fake-image-bytes", "image/jpeg"))],
+        headers=headers,
+    )
+    assert upload.status_code == 201, upload.text
+    body = upload.json()
+    assert len(body["attachments"]) == 1
+    assert body["attachments"][0]["filename"] == "result-slip.jpg"
+    attachment_id = body["attachments"][0]["id"]
+
+    download = client.get(
+        f"/api/patients/visits/{visit_id}/attachments/{attachment_id}",
+        headers=headers,
+    )
+    assert download.status_code == 200
+    assert download.content == b"fake-image-bytes"
+
+    empty = client.post(
+        f"/api/patients/visits/{visit_id}/attachments",
+        headers=headers,
+    )
+    assert empty.status_code == 400
+
+    missing = client.post(
+        "/api/patients/visits/nope/attachments",
+        files=[("files", ("x.jpg", b"x", "image/jpeg"))],
+        headers=headers,
+    )
+    assert missing.status_code == 404
+
+    anon = client.post(f"/api/patients/visits/{visit_id}/attachments")
+    assert anon.status_code == 401
+
+
 def test_update_visit(client: TestClient):
     headers = _headers(client)
     patient_id = _patient(client, "012")

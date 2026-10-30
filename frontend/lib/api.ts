@@ -129,6 +129,22 @@ export async function addSection(
   return (await res.json()) as ApiSection;
 }
 
+export async function addVisitAttachments(
+  token: string,
+  visitId: string,
+  files: File[],
+): Promise<ApiVisit> {
+  const form = new FormData();
+  for (const file of files) form.append('files', file);
+  const res = await fetch(`${API_BASE}/api/patients/visits/${visitId}/attachments`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: form,
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiVisit;
+}
+
 export async function updateSection(
   token: string,
   sectionId: string,

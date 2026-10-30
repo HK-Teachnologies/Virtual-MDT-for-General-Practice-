@@ -377,6 +377,39 @@ def test_referral_letter_uses_signed_off_only(client: TestClient):
     assert "Review ART adherence" not in letter2.json()["letter_text"]
 
 
+def test_referral_letter_includes_attachment_reads(
+    client: TestClient, tmp_path, monkeypatch
+):
+    """Photo/dictation machine-reads appear in the letter history, so the
+    receiving facility sees what the slip photo and voice note said."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    headers = _headers(client)
+    patient_id = _patient(client, "459459")
+    client.post(
+        f"/api/patients/{patient_id}/visits",
+        data={"notes": "Fever and cough.", "visit_date": "2026-10-29"},
+        files=[("files", ("slip.png", b"\x89PNG fakepng", "image/png"))],
+        headers=headers,
+    )
+    run = _ready_brief(client, headers, patient_id)
+    client.patch(
+        f"/api/mdt/items/{run['items'][0]['id']}",
+        json={"status": "approved"},
+        headers=headers,
+    )
+    letter = client.post(
+        f"/api/mdt/runs/{run['id']}/referral-letters",
+        json={"destination_facility": "Mbarara Hospital", "reason": "Review"},
+        headers=headers,
+    )
+    assert letter.status_code == 201, letter.text
+    text = letter.json()["letter_text"]
+    assert "Echo transcription of" in text
+    assert "UNVERIFIED machine read" in text
+
+
 def test_referral_letter_requires_signoff(client: TestClient):
     headers = _headers(client)
     patient_id = _patient(client, "458458")

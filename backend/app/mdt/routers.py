@@ -279,7 +279,7 @@ def _build_referral_letter(
     line covers the common case where the patient presents elsewhere.
     """
     from app.clinics.models import Clinic
-    from app.patients.models import Visit, VisitSection
+    from app.patients.models import Attachment, Visit, VisitSection
 
     items = db.scalars(select(BriefItem).where(BriefItem.run_id == run.id)).all()
     signed_off = [i for i in items if i.status in ("approved", "edited")]
@@ -298,6 +298,18 @@ def _build_referral_letter(
         ).all()
         parts = [visit.notes.strip()] if visit.notes.strip() else []
         parts += [f"[{s.section}] {s.content.strip()}" for s in sections if s.content.strip()]
+        attachments = db.scalars(
+            select(Attachment).where(Attachment.visit_id == visit.id)
+        ).all()
+        for attachment in attachments:
+            tr = db.scalar(
+                select(Transcription).where(
+                    Transcription.attachment_id == attachment.id
+                )
+            )
+            if tr and tr.text.strip():
+                tag = "verified" if tr.verified else "UNVERIFIED machine read"
+                parts.append(f"attached {tr.kind} ({tag}): {tr.text.strip()}")
         history.append(
             f"{visit.visit_date} ({clinic.name if clinic else 'general'}): "
             + ("; ".join(parts) if parts else "no notes recorded")

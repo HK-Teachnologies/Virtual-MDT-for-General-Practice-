@@ -335,25 +335,7 @@ def add_visit(
     db.add(visit)
     db.flush()
 
-    upload_dir = Path(settings.upload_dir)
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    attachments = []
-    for upload in files:
-        if not upload.filename:
-            continue
-        stored = f"{uuid.uuid4().hex}_{_safe_filename(upload.filename)}"
-        path = upload_dir / stored
-        with path.open("wb") as out:
-            out.write(upload.file.read())
-        attachment = Attachment(
-            visit_id=visit.id,
-            filename=Path(upload.filename).name,
-            stored_path=str(path),
-            content_type=upload.content_type,
-            created_by=current.id,
-        )
-        db.add(attachment)
-        attachments.append(attachment)
+    attachments = _store_uploads(db, visit.id, files, current.id)
 
     db.commit()
     db.refresh(visit)
@@ -371,6 +353,61 @@ def add_visit(
     # carries it when tasks run inline (tests), and stays honest ({}) when
     # the worker has not finished yet (production polling/backfill).
     db.expire(visit, ["patient_summary"])
+    return visit
+
+
+def _store_uploads(
+    db: Session, visit_id: str, files: list[UploadFile], user_id: str
+) -> list[Attachment]:
+    """Persist uploaded files as visit attachments. Skips empty parts."""
+    upload_dir = Path(settings.upload_dir)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    attachments = []
+    for upload in files:
+        if not upload.filename:
+            continue
+        stored = f"{uuid.uuid4().hex}_{_safe_filename(upload.filename)}"
+        path = upload_dir / stored
+        with path.open("wb") as out:
+            out.write(upload.file.read())
+        attachment = Attachment(
+            visit_id=visit_id,
+            filename=Path(upload.filename).name,
+            stored_path=str(path),
+            content_type=upload.content_type,
+            created_by=user_id,
+        )
+        db.add(attachment)
+        attachments.append(attachment)
+    return attachments
+
+
+@router.post("/visits/{visit_id}/attachments", response_model=VisitRead, status_code=status.HTTP_201_CREATED)
+def add_visit_attachments(
+    visit_id: str,
+    files: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Attach photos, dictations, or documents to an existing visit.
+
+    Used by the Add Result form so lab/imaging notes can carry a picture
+    of the slip or a recorded dictation. Every file gets the same
+    background AI read as capture-time uploads."""
+    visit = db.get(Visit, visit_id)
+    if visit is None:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    attachments = _store_uploads(db, visit.id, files, current.id)
+    if not attachments:
+        raise HTTPException(status_code=400, detail="No files uploaded")
+    db.commit()
+    db.refresh(visit)
+    for attachment in attachments:
+        safe_delay(transcribe_attachment, attachment.id)
+    safe_delay(embed_patient_chunks, visit.patient_id)
+    safe_delay(summarize_visit, visit.id)
+    _populate_visit(db, visit)
+    _name_visit(db, visit)
     return visit
 
 
