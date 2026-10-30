@@ -161,6 +161,7 @@ def load_patient_detail(db: Session, patient_id: str) -> Patient:
     for visit in visits:
         _populate_visit(db, visit)
         visit.released_by_name = names.get(visit.released_by or "")
+    _set_creator_names(db, list(visits))
     patient.visits = visits
     patient.visit_count = len(visits)
     patient.unverified_read_count = sum(
@@ -196,6 +197,22 @@ def _populate_visit(db: Session, visit: Visit) -> None:
             .order_by(VisitSection.created_at)
         ).all()
     )
+
+
+def _set_creator_names(db: Session, visits: list[Visit]) -> None:
+    """Staff display names for the audit trail: who recorded each visit,
+    section, and file. Unknown ids stay blank."""
+    ids = {v.created_by for v in visits if v.created_by}
+    for visit in visits:
+        ids.update(s.created_by for s in visit.sections if s.created_by)
+        ids.update(a.created_by for a in visit.attachments if a.created_by)
+    names = _release_names(db, ids)
+    for visit in visits:
+        visit.created_by_name = names.get(visit.created_by or "")
+        for section in visit.sections:
+            section.created_by_name = names.get(section.created_by or "")
+        for attachment in visit.attachments:
+            attachment.created_by_name = names.get(attachment.created_by or "")
 
 
 @router.get("/{patient_id}", response_model=PatientRead)
@@ -379,6 +396,7 @@ def add_visit(
     _with_transcriptions(db, attachments)
     visit.clinic = clinic
     visit.sections = []
+    _set_creator_names(db, [visit])
     # Background AI: read uploaded photos/audio, refresh patient vectors,
     # and write the patient-safe visit summary for the portal.
     for attachment in attachments:
@@ -444,6 +462,7 @@ def add_visit_attachments(
     safe_delay(summarize_visit, visit.id)
     _populate_visit(db, visit)
     _name_visit(db, visit)
+    _set_creator_names(db, [visit])
     return visit
 
 
@@ -504,6 +523,9 @@ def add_section(
     db.add(section)
     db.commit()
     db.refresh(section)
+    section.created_by_name = _release_names(db, {section.created_by}).get(
+        section.created_by or ""
+    )
     safe_delay(embed_patient_chunks, patient_id)
     safe_delay(summarize_visit, visit.id)
     return section
@@ -638,6 +660,7 @@ def update_visit(
             .order_by(VisitSection.created_at)
         ).all()
     )
+    _set_creator_names(db, [visit])
     return visit
 
 
@@ -671,6 +694,7 @@ def update_visit_summary(
     db.refresh(visit)
     _populate_visit(db, visit)
     _name_visit(db, visit)
+    _set_creator_names(db, [visit])
     return visit
 
 
@@ -693,4 +717,5 @@ def release_visit_summary(
     db.refresh(visit)
     _populate_visit(db, visit)
     _name_visit(db, visit)
+    _set_creator_names(db, [visit])
     return visit

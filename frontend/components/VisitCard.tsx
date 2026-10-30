@@ -421,6 +421,9 @@ export default function VisitCard({
           </span>
         )}
       </div>
+      {visit.created_by_name && (
+        <p className="muted">Recorded by {visit.created_by_name}</p>
+      )}
 
       {editingNotes ? (
         <div className="field">
@@ -462,6 +465,9 @@ export default function VisitCard({
           {visit.attachments.map((a) => (
             <li key={a.id}>
               {a.filename}{' '}
+              {a.created_by_name && (
+                <span className="muted">uploaded by {a.created_by_name} </span>
+              )}
               {isAudioFile(a) ? (
                 <span className="muted">(voice note kept as text only)</span>
               ) : !readOnly && token ? (
@@ -578,6 +584,9 @@ export default function VisitCard({
             ) : (
               <div className="section-item" key={s.id}>
                 <p>{s.content}</p>
+                {s.created_by_name && (
+                  <p className="muted">Added by {s.created_by_name}</p>
+                )}
                 {!readOnly && (
                   <div className="row">
                     <button

@@ -1,13 +1,16 @@
 import hashlib
 import hmac
+import json
 import logging
 import secrets
 import smtplib
+import tempfile
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+from pathlib import Path
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
@@ -34,6 +37,29 @@ def _hash_code(code: str) -> str:
     return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
 
+def _send_email(to_email: str, subject: str, body: str) -> bool:
+    """Hand a message to SMTP. Returns True when accepted; never raises —
+    callers treat notification mail as best-effort and only log failures."""
+    if not settings.smtp_host:
+        logger.info("Email skipped (SMTP not configured - dev mode): %s", subject)
+        return False
+    message = EmailMessage()
+    message["From"] = settings.smtp_from
+    message["To"] = to_email
+    message["Subject"] = subject
+    message.set_content(body)
+    try:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as smtp:
+            smtp.starttls()
+            if settings.smtp_user:
+                smtp.login(settings.smtp_user, settings.smtp_password)
+            smtp.send_message(message)
+    except Exception as exc:
+        logger.warning("Email to %s failed (%s)", to_email, exc)
+        return False
+    return True
+
+
 def _send_otp_email(to_email: str, code: str) -> None:
     """Email the code; always log it too (dev/demo use made-up addresses).
 
@@ -42,26 +68,25 @@ def _send_otp_email(to_email: str, code: str) -> None:
     """
     if settings.otp_log_code:
         logger.info("OTP for %s: %s", to_email, code)
-    if not settings.smtp_host:
-        logger.info("OTP email skipped (SMTP not configured - dev mode)")
-        return
-    message = EmailMessage()
-    message["From"] = settings.smtp_from
-    message["To"] = to_email
-    message["Subject"] = "Your Virtual MDT sign-in code"
-    message.set_content(
+    _send_email(
+        to_email,
+        "Your Virtual MDT sign-in code",
         f"Your Virtual MDT sign-in code is {code}. "
         f"It expires in {settings.otp_expire_minutes} minutes. "
-        "If you did not request this, ignore this message."
+        "If you did not request this, ignore this message.",
     )
-    try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as smtp:
-            smtp.starttls()
-            if settings.smtp_user:
-                smtp.login(settings.smtp_user, settings.smtp_password)
-            smtp.send_message(message)
-    except Exception as exc:
-        logger.warning("OTP email to %s failed (%s) - code was: %s", to_email, exc, code)
+
+
+def send_answer_notification(to_email: str) -> bool:
+    """Tell a patient their doctor has answered: a sign-in nudge only, never
+    clinical content — the question and answer stay inside the portal."""
+    return _send_email(
+        to_email,
+        "Your doctor has answered your question",
+        "Your doctor has answered the question you asked in the Virtual MDT "
+        "patient portal. Sign in to read the answer. "
+        "If you did not ask a question, ignore this message.",
+    )
 
 
 def _find_patient(db: Session, identifier: str):
@@ -284,4 +309,213 @@ def read_own_summary(
             )
             for letter in letters
         ],
+    )
+
+
+PORTAL_CHAT_LANGS = ("en", "sw", "lg")
+
+# Danger signs that skip the model entirely: the reply is a fixed urgent
+# redirect, never a diagnosis. Matched case-insensitively against the
+# English question (voice notes are translated first).
+RED_FLAG_TERMS = (
+    "bleeding",
+    "bleed",
+    "can't breathe",
+    "cannot breathe",
+    "difficulty breathing",
+    "breathing difficulty",
+    "short of breath",
+    "chest pain",
+    "chest pressure",
+    "unconscious",
+    "fainted",
+    "fainting",
+    "seizure",
+    "convulsion",
+    "fit ",
+    "poison",
+    "overdose",
+    "suicide",
+    "kill myself",
+    "burn",
+    "broken bone",
+    "fracture",
+    "labour",
+    "labor",
+    "water broke",
+    "severe headache",
+    "worst headache",
+    "vision loss",
+    "cannot see",
+    "high fever with rash",
+    "stiff neck",
+)
+
+URGENT_REPLY = {
+    "en": (
+        "What you describe can be an emergency. Go to the nearest health "
+        "facility or emergency unit now — do not wait for a reply here."
+    ),
+    "sw": (
+        "Dalili ulizoeleza zinaweza kuwa za dharura. Nenda kwenye kituo cha "
+        "afya kilicho karibu nawe sasa hivi — usisubiri jibu hapa."
+    ),
+    "lg": (
+        "Ebyo by'ogambye biyinza okuba eby'akabenje. Genda mangu ku "
+        "ddwaliro erisinga okuba okumpi naawe — tolindirira kuddamu wano."
+    ),
+}
+
+PORTAL_CHAT_SYSTEM = """You are a friendly clinic guide inside a patient's own health portal.
+You are NOT a doctor. Rules you must never break:
+1. Never diagnose: never name a condition the patient might have.
+2. Never prescribe, start, stop, or change any medicine or dose.
+3. Answer ONLY from the provided record: released visit summaries, the overall
+   message, the prescription list, and the clinic list. If the answer is not
+   there, say you cannot answer that here and point them to their doctor.
+4. Medication questions: explain what is written (name, dose, timing as
+   recorded). Any change, side effect, or missed dose means asking the doctor.
+5. Which clinic to visit: match the concern to the clinic names and
+   descriptions given. If none fits, suggest the general outpatient clinic or
+   asking at reception. Never invent facilities.
+6. Reply in the requested language, in short plain words (2-4 sentences), and
+   always close by inviting them to visit their clinic or ask their doctor if
+   worried.
+Return JSON: {"reply": "<your answer>"}."""
+
+
+class PortalChatReply(BaseModel):
+    reply: str
+    lang: str
+    question_original: str
+    question_en: str
+    urgent: bool = False
+
+
+def _has_red_flags(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(term in lowered for term in RED_FLAG_TERMS)
+
+
+@router.post("/chat", response_model=PortalChatReply)
+def portal_chat(
+    message: str = Form(""),
+    lang: str = Form("en"),
+    audio: UploadFile | None = File(None),
+    current: Patient = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+):
+    """Patient guide chat: plain answers from released content, never a
+    diagnosis. Voice notes (Luganda/Kiswahili/English) are transcribed first;
+    danger signs get a fixed urgent redirect without any model call."""
+    from app.clinics.models import Clinic
+    from app.llm.client import complete_json, transcribe_to_english
+    from app.mdt.models import BriefRun
+    from app.patients.models import Visit, VisitSection
+
+    if lang not in PORTAL_CHAT_LANGS:
+        raise HTTPException(
+            status_code=400, detail="lang must be one of: en, sw, lg"
+        )
+    question_original = message.strip()
+    question_en = message.strip()
+    if audio is not None and audio.filename:
+        suffix = Path(audio.filename).suffix or ".webm"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(audio.file.read())
+            path = tmp.name
+        try:
+            original, english = transcribe_to_english(path)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Voice transcription failed: {exc}"
+            )
+        finally:
+            Path(path).unlink(missing_ok=True)
+        if not question_original:
+            question_original = original
+        if english.strip():
+            question_en = english.strip()
+    if not question_en:
+        raise HTTPException(status_code=400, detail="Ask with text or a voice note")
+    if _has_red_flags(question_en):
+        return PortalChatReply(
+            reply=URGENT_REPLY.get(lang, URGENT_REPLY["en"]),
+            lang=lang,
+            question_original=question_original,
+            question_en=question_en,
+            urgent=True,
+        )
+
+    visits = (
+        db.scalars(
+            select(Visit)
+            .where(Visit.patient_id == current.id)
+            .order_by(Visit.visit_date)
+        ).all()
+    )
+    summaries = []
+    for visit in visits:
+        if (visit.summary_status or "draft") != "released":
+            continue
+        stored = dict(visit.patient_summary or {})
+        text = str(stored.get(lang, "") or stored.get("en", "")).strip()
+        if text:
+            summaries.append({"date": str(visit.visit_date), "text": text})
+    run = (
+        db.scalars(
+            select(BriefRun)
+            .where(BriefRun.patient_id == current.id, BriefRun.status == "ready")
+            .order_by(BriefRun.created_at.desc())
+        ).first()
+    )
+    overall = ""
+    if run is not None and (run.summary_status or "draft") == "released":
+        stored = dict(run.patient_summary or {})
+        overall = str(stored.get(lang, "") or stored.get("en", "")).strip()
+    prescriptions = [
+        {"date": str(visit.visit_date), "text": section.content.strip()}
+        for visit in visits
+        for section in db.scalars(
+            select(VisitSection).where(
+                VisitSection.visit_id == visit.id,
+                VisitSection.section == "prescription",
+            )
+        ).all()
+        if section.content.strip()
+    ]
+    clinics = [
+        {"name": clinic.name, "description": clinic.description or ""}
+        for clinic in db.scalars(
+            select(Clinic).where(Clinic.active.is_(True)).order_by(Clinic.name)
+        ).all()
+    ]
+    try:
+        raw = complete_json(
+            system=PORTAL_CHAT_SYSTEM,
+            user=json.dumps(
+                {
+                    "question": question_en,
+                    "language": lang,
+                    "released_summaries": summaries,
+                    "overall_message": overall,
+                    "prescriptions": prescriptions,
+                    "clinics": clinics,
+                }
+            ),
+            kind="portal_chat",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"The guide has no answer right now: {exc}"
+        )
+    reply = str(raw.get("reply", "")).strip()
+    if not reply:
+        raise HTTPException(status_code=502, detail="The guide has no answer right now")
+    return PortalChatReply(
+        reply=reply,
+        lang=lang,
+        question_original=question_original,
+        question_en=question_en,
+        urgent=False,
     )

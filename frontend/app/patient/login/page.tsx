@@ -108,6 +108,9 @@ export default function PatientLogin() {
           </form>
         )}
         <p className="muted">
+          <Link href="/patient/guide">How to use this portal</Link>
+        </p>
+        <p className="muted">
           Staff? <Link href="/login">Sign in here</Link>
         </p>
       </div>

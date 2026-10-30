@@ -16,9 +16,12 @@ function Step({ n, title, children }: { n: string; title: string; children: Reac
 export default function Guide() {
   return (
     <div>
-      <h1>User guide</h1>
+      <h1>Staff user guide</h1>
       <p className="muted">
-        How to use Virtual MDT, from registering a patient to closing a specialist review.
+        How staff use Virtual MDT, from registering a patient to closing a
+        specialist review. Patients get their own shorter guide inside the
+        portal (<strong>How to use this portal</strong>) — this page is the
+        clinical side.
       </p>
 
       <Step n="1" title="Register a patient">
@@ -197,6 +200,17 @@ export default function Guide() {
           are translated automatically: the patient reads and answers in English,
           Kiswahili, or Luganda, and answers arrive back as English text with the
           original words kept behind a <strong>Show original</strong> link.
+          It works the other way too: patients can <strong>Ask the doctor</strong>{' '}
+          from the portal (text or voice note, answered on this record under{' '}
+          <strong>Questions from the patient</strong>). Every clinical role can
+          answer — nurses, midwives, pharmacists included — while the
+          non-clinical normal_user role sees the inbox read-only. When an
+          answer is saved the patient gets an email nudge to sign in and read
+          it (SMTP configured); the question and answer themselves never leave
+          the portal. A non-diagnostic{' '}
+          <strong>clinic guide chat</strong> answers simple questions from
+          released summaries and prescriptions — pointing to the right clinic,
+          never diagnosing.
         </p>
       </Step>
 

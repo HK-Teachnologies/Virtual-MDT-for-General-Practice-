@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import BriefSummaryGate from '../../../components/BriefSummaryGate';
 import CaptureForm from '../../../components/CaptureForm';
+import DoctorInbox from '../../../components/DoctorInbox';
 import FollowUpThread from '../../../components/FollowUpThread';
 import ReferralLetters from '../../../components/ReferralLetters';
 import PatientDetails from '../../../components/PatientDetails';
@@ -325,6 +326,8 @@ export default function PatientRecord() {
       </section>
 
       {token && <FollowUpThread patientId={patient.id} token={token} />}
+
+      {token && <DoctorInbox patientId={patient.id} token={token} />}
 
       <section className="panel">
         <h2>MDT review</h2>

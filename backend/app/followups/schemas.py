@@ -21,3 +21,31 @@ class FollowUpRead(BaseModel):
     status: str
     created_at: datetime
     answered_at: datetime | None = None
+
+
+class PatientQuestionRead(BaseModel):
+    id: str
+    patient_id: str
+    question: str
+    question_original: str = ""
+    answer_text: str = ""
+    answerer_name: str = ""
+    status: str
+    created_at: datetime
+    answered_at: datetime | None = None
+
+
+class PatientQuestionAnswer(BaseModel):
+    answer_text: str
+
+
+class PatientQuestionRead(BaseModel):
+    id: str
+    patient_id: str
+    question: str
+    question_original: str = ""
+    answer_text: str = ""
+    answerer_name: str = ""
+    status: str
+    created_at: datetime
+    answered_at: datetime | None = None

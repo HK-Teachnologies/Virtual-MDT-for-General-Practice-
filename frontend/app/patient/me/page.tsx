@@ -3,11 +3,19 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import PatientAskDoctor from '../../../components/PatientAskDoctor';
+import PatientChat from '../../../components/PatientChat';
 import PatientQuestions from '../../../components/PatientQuestions';
 import PatientSummary, { type SummaryLang } from '../../../components/PatientSummary';
-import type { ApiFollowUp, ApiPatient, MySummary } from '../../../lib/types';
+import type {
+  ApiFollowUp,
+  ApiPatient,
+  ApiPatientQuestion,
+  MySummary,
+} from '../../../lib/types';
 import {
   clearPatientToken,
+  fetchMyAskedQuestions,
   fetchMyQuestions,
   fetchMySummary,
   fetchOwnRecord,
@@ -19,6 +27,7 @@ export default function PatientPortal() {
   const [record, setRecord] = useState<ApiPatient | null>(null);
   const [summary, setSummary] = useState<MySummary | undefined>(undefined);
   const [questions, setQuestions] = useState<ApiFollowUp[] | undefined>(undefined);
+  const [asked, setAsked] = useState<ApiPatientQuestion[] | undefined>(undefined);
   const [lang, setLang] = useState<SummaryLang>('en');
   const [failed, setFailed] = useState(false);
 
@@ -28,8 +37,13 @@ export default function PatientPortal() {
       setFailed(true);
       return;
     }
-    Promise.all([fetchOwnRecord(token), fetchMySummary(token), fetchMyQuestions(token)])
-      .then(([rec, sum, qs]) => {
+    Promise.all([
+      fetchOwnRecord(token),
+      fetchMySummary(token),
+      fetchMyQuestions(token),
+      fetchMyAskedQuestions(token),
+    ])
+      .then(([rec, sum, qs, mine]) => {
         if (!rec) {
           clearPatientToken();
           setFailed(true);
@@ -38,6 +52,7 @@ export default function PatientPortal() {
         setRecord(rec);
         setSummary(sum ?? undefined);
         setQuestions(qs ?? []);
+        setAsked(mine ?? []);
       })
       .catch(() => setFailed(true));
   }, []);
@@ -59,7 +74,7 @@ export default function PatientPortal() {
     );
   }
 
-  if (!record || summary === undefined || questions === undefined) {
+  if (!record || summary === undefined || questions === undefined || asked === undefined) {
     return <p>Loading your record…</p>;
   }
 
@@ -68,6 +83,9 @@ export default function PatientPortal() {
       <h1>My record</h1>
       <p className="muted">
         {[record.full_name, record.phone, record.district].filter(Boolean).join(' · ')}
+      </p>
+      <p>
+        <Link href="/patient/guide">How to use this portal</Link>
       </p>
       <PatientSummary
         summary={summary}
@@ -95,6 +113,8 @@ export default function PatientPortal() {
         </section>
       )}
       <PatientQuestions initial={questions} lang={lang} />
+      <PatientChat lang={lang} />
+      <PatientAskDoctor initial={asked} />
       <button className="btn" type="button" onClick={signOut}>
         Sign out
       </button>

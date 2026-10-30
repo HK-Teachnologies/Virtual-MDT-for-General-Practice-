@@ -1,5 +1,11 @@
 import { API_BASE } from './api';
-import type { ApiFollowUp, ApiPatient, MySummary } from './types';
+import type {
+  ApiFollowUp,
+  ApiPatient,
+  ApiPatientQuestion,
+  ApiPortalChatReply,
+  MySummary,
+} from './types';
 
 const STORAGE_KEY = 'mdt-patient-token';
 
@@ -82,4 +88,50 @@ export async function answerQuestion(
   });
   if (!res.ok) throw new Error(await readError(res));
   return (await res.json()) as ApiFollowUp;
+}
+
+export async function askPortalChat(
+  token: string,
+  message: string,
+  lang: string,
+  audio: File | null,
+): Promise<ApiPortalChatReply> {
+  const form = new FormData();
+  form.append('message', message);
+  form.append('lang', lang);
+  if (audio) form.append('audio', audio);
+  const res = await fetch(`${API_BASE}/api/patient-auth/chat`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiPortalChatReply;
+}
+
+export async function askDoctor(
+  token: string,
+  text: string,
+  audio: File | null,
+): Promise<ApiPatientQuestion> {
+  const form = new FormData();
+  form.append('text', text);
+  if (audio) form.append('audio', audio);
+  const res = await fetch(`${API_BASE}/api/followups/patient-questions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiPatientQuestion;
+}
+
+export async function fetchMyAskedQuestions(
+  token: string,
+): Promise<ApiPatientQuestion[]> {
+  const res = await fetch(`${API_BASE}/api/followups/patient-questions/mine`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as ApiPatientQuestion[];
 }

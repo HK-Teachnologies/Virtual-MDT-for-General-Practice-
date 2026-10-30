@@ -33,9 +33,14 @@ Hackathon (26 Oct – 4 Nov 2026).
 - Guideline library: PDF upload, page-aware indexing, verified page citations.
 - Patient portal (OTP login) with release-gated AI visit summaries
   (English/Kiswahili/Luganda), doctor–patient follow-up Q&A in all three
-  languages, and releasable referral letters, clinics master, admin
-  user/specialty management, mobile drawer navigation, in-app user guide,
-  demo data seeding.
+  languages, a non-diagnostic guide chat, patient-initiated Ask the doctor,
+  and releasable referral letters, clinics master, admin
+  user/specialty management, mobile drawer navigation, separate staff and
+  patient in-app guides, demo data seeding. Ask-the-doctor answers are open to every clinical role
+  (the non-clinical normal_user role is read-only); saving an answer emails
+  the patient a sign-in nudge when SMTP is configured — the Q&A itself stays
+  in the portal. Danger signs in the guide chat skip the model and return a
+  fixed go-to-a-facility-now reply in English, Kiswahili, and Luganda.
 
 ![MDT brief for Demo Patient A: sourced points, safety panels, and the self-check audit](docs/brief-hero.png)
 

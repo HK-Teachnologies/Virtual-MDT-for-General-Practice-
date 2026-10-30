@@ -74,6 +74,9 @@ _ECHO = {
     "translate_en": {
         "en": "Echo transcription in English.",
     },
+    "portal_chat": {
+        "reply": "Echo clinic guide reply.",
+    },
 }
 
 

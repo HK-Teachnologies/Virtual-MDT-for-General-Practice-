@@ -46,6 +46,26 @@ export interface ApiFollowUp {
   answered_at: string | null;
 }
 
+export interface ApiPatientQuestion {
+  id: string;
+  patient_id: string;
+  question: string;
+  question_original: string;
+  answer_text: string;
+  answerer_name: string;
+  status: string;
+  created_at: string;
+  answered_at: string | null;
+}
+
+export interface ApiPortalChatReply {
+  reply: string;
+  lang: string;
+  question_original: string;
+  question_en: string;
+  urgent: boolean;
+}
+
 export interface MySummaryVisit {
   visit_id: string;
   date: string;
@@ -203,6 +223,7 @@ export interface ApiAttachment {
   id: string;
   filename: string;
   content_type: string | null;
+  created_by_name?: string | null;
   transcription: ApiTranscription | null;
 }
 
@@ -294,6 +315,7 @@ export interface ApiSection {
   id: string;
   section: string;
   content: string;
+  created_by_name?: string | null;
   created_at: string;
 }
 
@@ -307,6 +329,7 @@ export interface ApiVisit {
   released_by_name?: string | null;
   released_at?: string | null;
   clinic: { id: string; name: string } | null;
+  created_by_name?: string | null;
   attachments: ApiAttachment[];
   sections: ApiSection[];
 }

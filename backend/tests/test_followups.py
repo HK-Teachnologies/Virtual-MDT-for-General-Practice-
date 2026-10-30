@@ -377,6 +377,156 @@ def test_referral_letter_uses_signed_off_only(client: TestClient):
     assert "Review ART adherence" not in letter2.json()["letter_text"]
 
 
+def test_patient_can_ask_doctor_by_text_and_voice(
+    client: TestClient, monkeypatch
+):
+    """Ask the doctor: typed or voice question in, staff answer back out."""
+    from app.llm import client as llm_client
+
+    monkeypatch.setattr(
+        llm_client,
+        "transcribe_to_english",
+        lambda path: ("Ddwaliro liriva?", "Which clinic should I visit?"),
+    )
+    headers = _headers(client)
+    patient_id, token = _patient_token(client, "447447", monkeypatch)
+    ph = {"Authorization": f"Bearer {token}"}
+
+    typed = client.post(
+        "/api/followups/patient-questions",
+        data={"text": "Can I take my pills with food?"},
+        headers=ph,
+    )
+    assert typed.status_code == 201, typed.text
+    assert typed.json()["status"] == "open"
+    assert typed.json()["question"] == "Can I take my pills with food?"
+
+    voiced = client.post(
+        "/api/followups/patient-questions",
+        files={"audio": ("q.webm", b"fake-audio-bytes", "audio/webm")},
+        headers=ph,
+    )
+    assert voiced.status_code == 201, voiced.text
+    assert voiced.json()["question"] == "Which clinic should I visit?"
+    assert voiced.json()["question_original"] == "Ddwaliro liriva?"
+
+    mine = client.get("/api/followups/patient-questions/mine", headers=ph)
+    assert mine.status_code == 200, mine.text
+    assert [q["question"] for q in mine.json()] == [
+        "Can I take my pills with food?",
+        "Which clinic should I visit?",
+    ]
+
+    inbox = client.get(
+        f"/api/followups/patient-questions/for-patient/{patient_id}",
+        headers=headers,
+    )
+    assert inbox.status_code == 200, inbox.text
+    assert len(inbox.json()) == 2
+
+    qid = typed.json()["id"]
+    answered = client.post(
+        f"/api/followups/patient-questions/{qid}/answer",
+        json={"answer_text": "Yes — take them with breakfast."},
+        headers=headers,
+    )
+    assert answered.status_code == 200, answered.text
+    assert answered.json()["status"] == "answered"
+    assert answered.json()["answerer_name"] == "Admin"
+
+    seen = client.get("/api/followups/patient-questions/mine", headers=ph)
+    assert seen.json()[0]["status"] == "open"
+    assert seen.json()[1]["id"] == qid
+    assert seen.json()[1]["answer_text"] == "Yes — take them with breakfast."
+
+    empty = client.post(
+        "/api/followups/patient-questions", data={"text": " "}, headers=ph
+    )
+    assert empty.status_code == 400
+
+    missing = client.post(
+        "/api/followups/patient-questions/nope/answer",
+        json={"answer_text": "x"},
+        headers=headers,
+    )
+    assert missing.status_code == 404
+
+    anon = client.post("/api/followups/patient-questions", data={"text": "hi?"})
+    assert anon.status_code in (401, 403)
+
+
+def test_ask_doctor_clinical_roles_answer_patients_get_nudge(
+    client: TestClient, monkeypatch
+):
+    """Ask-the-doctor: any clinical cadre answers, normal_user is read-only
+    but still sees the inbox, and the patient gets a sign-in nudge by email."""
+    from sqlalchemy import select
+
+    from app.core.security import hash_password
+    from app.db.session import SessionLocal
+    from app.users.models import User
+
+    sent: list = []
+    monkeypatch.setattr(
+        "app.followups.routers.send_answer_notification",
+        lambda email: sent.append(email) or True,
+    )
+
+    db = SessionLocal()
+    try:
+        if not db.scalar(select(User).where(User.email == "clerk@example.com")):
+            db.add(
+                User(
+                    email="clerk@example.com",
+                    hashed_password=hash_password("clerk123"),
+                    full_name="Clerk",
+                    role="normal_user",
+                )
+            )
+            db.commit()
+    finally:
+        db.close()
+    r = client.post(
+        "/api/auth/login", data={"username": "clerk@example.com", "password": "clerk123"}
+    )
+    assert r.status_code == 200, r.text
+    clerk = {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+    headers = _headers(client)
+    patient_id, ptoken = _patient_token(client, "449450", monkeypatch)
+    ph = {"Authorization": f"Bearer {ptoken}"}
+    asked = client.post(
+        "/api/followups/patient-questions",
+        data={"text": "When is my next visit?"},
+        headers=ph,
+    )
+    assert asked.status_code == 201, asked.text
+    qid = asked.json()["id"]
+
+    denied = client.post(
+        f"/api/followups/patient-questions/{qid}/answer",
+        json={"answer_text": "Monday."},
+        headers=clerk,
+    )
+    assert denied.status_code == 403
+    assert sent == []
+
+    inbox = client.get(
+        f"/api/followups/patient-questions/for-patient/{patient_id}",
+        headers=clerk,
+    )
+    assert inbox.status_code == 200, inbox.text
+    assert len(inbox.json()) == 1
+
+    answered = client.post(
+        f"/api/followups/patient-questions/{qid}/answer",
+        json={"answer_text": "Monday at 9."},
+        headers=headers,
+    )
+    assert answered.status_code == 200, answered.text
+    assert sent == ["followup-449450@example.com"]
+
+
 def test_referral_letter_includes_attachment_reads(
     client: TestClient, tmp_path, monkeypatch
 ):

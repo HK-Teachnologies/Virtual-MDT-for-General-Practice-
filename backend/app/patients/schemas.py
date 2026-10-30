@@ -43,6 +43,7 @@ class AttachmentRead(BaseModel):
     id: str
     filename: str
     content_type: str | None = None
+    created_by_name: str | None = None
     transcription: TranscriptionRead | None = None
 
 
@@ -65,6 +66,7 @@ class VisitRead(BaseModel):
     released_by_name: str | None = None
     released_at: datetime | None = None
     clinic: ClinicRef | None = None
+    created_by_name: str | None = None
 
     _null_summary_to_empty = field_validator("patient_summary", mode="before")(
         _coerce_summary
@@ -102,6 +104,7 @@ class SectionRead(BaseModel):
     id: str
     section: str
     content: str
+    created_by_name: str | None = None
     created_at: datetime
 
 

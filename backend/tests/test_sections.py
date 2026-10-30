@@ -169,6 +169,35 @@ def test_delete_visit_removes_sections_files_and_reads(
     assert anon.status_code == 401
 
 
+def test_audit_trail_names_who_recorded_what(
+    client: TestClient, tmp_path, monkeypatch
+):
+    """Patient journey: every visit, section, and file names the staffer."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    headers = _headers(client)
+    patient_id = _patient(client, "015")
+    visit_id = _visit(client, patient_id)
+    client.post(
+        f"/api/patients/{patient_id}/visits/{visit_id}/sections",
+        json={"section": "lab", "content": "CD4 350."},
+        headers=headers,
+    )
+    client.post(
+        f"/api/patients/visits/{visit_id}/attachments",
+        files=[("files", ("slip.png", b"\x89PNG fakepng", "image/png"))],
+        headers=headers,
+    )
+
+    read = client.get(f"/api/patients/{patient_id}", headers=headers)
+    assert read.status_code == 200, read.text
+    visit = read.json()["visits"][0]
+    assert visit["created_by_name"] == "Admin"
+    assert visit["sections"][0]["created_by_name"] == "Admin"
+    assert visit["attachments"][0]["created_by_name"] == "Admin"
+
+
 def test_update_visit(client: TestClient):
     headers = _headers(client)
     patient_id = _patient(client, "012")
