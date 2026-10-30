@@ -29,13 +29,20 @@ export default function PatientPortal() {
   const [asked, setAsked] = useState<ApiPatientQuestion[] | undefined>(undefined);
   const [lang, setLang] = useState<SummaryLang>('en');
   const [failed, setFailed] = useState(false);
+  const [hasToken, setHasToken] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const token = getPatientToken();
     if (!token) {
+      setHasToken(false);
       setFailed(true);
       return;
     }
+    // Keep the token: a failed load may be a blip, an expired code, or the
+    // server being unreachable — only an explicit sign-out clears it, so a
+    // valid sign-in is never destroyed by a bad connection.
+    setHasToken(true);
     Promise.all([
       fetchOwnRecord(token),
       fetchMySummary(token),
@@ -44,7 +51,6 @@ export default function PatientPortal() {
     ])
       .then(([rec, sum, qs, mine]) => {
         if (!rec) {
-          clearPatientToken();
           setFailed(true);
           return;
         }
@@ -54,7 +60,7 @@ export default function PatientPortal() {
         setAsked(mine ?? []);
       })
       .catch(() => setFailed(true));
-  }, []);
+  }, [attempt]);
 
   function signOut() {
     clearPatientToken();
@@ -65,10 +71,39 @@ export default function PatientPortal() {
     return (
       <div>
         <h1>My record</h1>
-        <p>
-          Please <Link href="/patient/login">sign in with a one-time code</Link> to view
-          your record.
-        </p>
+        {hasToken ? (
+          <>
+            <p>
+              We couldn&apos;t open your record. Check your connection and try
+              again — or sign out and sign in with a fresh code.
+            </p>
+            <div className="row">
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => {
+                  setFailed(false);
+                  setAttempt((a) => a + 1);
+                }}
+              >
+                Try again
+              </button>
+              <button className="btn" type="button" onClick={signOut}>
+                Sign out
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p>
+              Please <Link href="/patient/login">sign in with a one-time code</Link> to
+              view your record.
+            </p>
+            <p>
+              <Link href="/patient/guide">How to use this portal</Link>
+            </p>
+          </>
+        )}
       </div>
     );
   }

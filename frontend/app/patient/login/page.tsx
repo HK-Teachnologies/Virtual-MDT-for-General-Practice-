@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { getPatientToken, requestOtp, verifyOtp } from '../../../lib/patient-auth';
 
 export default function PatientLogin() {
@@ -13,9 +13,9 @@ export default function PatientLogin() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (typeof window !== 'undefined' && getPatientToken()) {
-    router.replace('/patient/me');
-  }
+  useEffect(() => {
+    if (getPatientToken()) router.replace('/patient/me');
+  }, [router]);
 
   async function sendCode(e: FormEvent) {
     e.preventDefault();
