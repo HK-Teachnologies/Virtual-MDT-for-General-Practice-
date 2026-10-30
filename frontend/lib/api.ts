@@ -145,6 +145,19 @@ export async function addVisitAttachments(
   return (await res.json()) as ApiVisit;
 }
 
+export async function transcribeAudioNote(token: string, audio: Blob): Promise<string> {
+  const form = new FormData();
+  form.append('file', audio, 'dictation.webm');
+  const res = await fetch(`${API_BASE}/api/mdt/transcribe`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: form,
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  const body = (await res.json()) as { text?: unknown };
+  return typeof body.text === 'string' ? body.text : '';
+}
+
 export async function updateSection(
   token: string,
   sectionId: string,

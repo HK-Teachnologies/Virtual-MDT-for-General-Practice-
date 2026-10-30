@@ -1,4 +1,5 @@
 import re
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.llm import client as llm
 from app.mdt.models import (
     ITEM_STATUSES,
     BriefItem,
@@ -663,6 +665,32 @@ def list_guidelines(
 ):
     docs = db.scalars(select(GuidelineDoc).order_by(GuidelineDoc.created_at.desc())).all()
     return [_guideline_read(db, doc) for doc in docs]
+
+
+@router.post("/transcribe")
+def transcribe_dictation(
+    file: UploadFile = File(...),
+    current: User = Depends(get_current_user),
+):
+    """Record-and-transcribe dictation: audio in, text out, file deleted.
+
+    The Add Result Dictate button records locally, posts here, and inserts
+    the transcription into the notes field for editing before saving — so
+    every spoken word goes through Meta's transcription model, never a
+    browser speech API. Staff login required."""
+    suffix = Path(file.filename or "dictation.webm").suffix or ".webm"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(file.file.read())
+        path = tmp.name
+    try:
+        text = llm.transcribe_audio(path)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Voice transcription failed: {exc}"
+        )
+    finally:
+        Path(path).unlink(missing_ok=True)
+    return {"text": text}
 
 
 @router.get("/transcriptions/{attachment_id}", response_model=TranscriptionRead)

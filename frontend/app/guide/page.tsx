@@ -74,11 +74,12 @@ export default function Guide() {
           standard sections (lab, imaging, vitals, and more) later. The form takes
           typed notes plus any combination of <strong>Take a photo</strong> (camera
           on a phone), <strong>Attach files</strong>, <strong>Dictate</strong>{' '}
-          (live speech-to-text in English US/UK or Kiswahili — pick the language
-          first), and <strong>Record audio</strong> (attached and transcribed for
-          verification). Photos and recordings get the same AI read as capture,
-          and their verified text feeds the review, the referral letter, and the
-          patient summary.
+          (record, tap stop, and the transcription appears in the notes for
+          editing — transcribed by Muse Voice Transcribe, the recording is
+          deleted), and <strong>Record audio</strong> (attached and transcribed
+          for verification). Photos and recordings get the same AI read as
+          capture, and their verified text feeds the review, the referral
+          letter, and the patient summary.
         </p>
       </Step>
 

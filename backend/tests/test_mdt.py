@@ -906,6 +906,43 @@ def test_patient_record_ingestion(client: TestClient):
     assert r.status_code == 401
 
 
+def test_transcribe_endpoint_returns_text_and_deletes_audio(
+    client: TestClient, monkeypatch
+):
+    """Record-and-transcribe dictation: audio in, Meta text out, file gone."""
+    from pathlib import Path
+
+    from app.llm import client as llm_client
+
+    seen: dict[str, str] = {}
+
+    def fake_transcribe(path: str, language=None) -> str:
+        seen["path"] = path
+        assert Path(path).exists()
+        return "Chest X-ray clear, continue ART."
+
+    monkeypatch.setattr(llm_client, "transcribe_audio", fake_transcribe)
+    token = admin_token(client)
+    wav = (
+        b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00"
+        b"\x40\x1f\x00\x00\x40\x1f\x00\x00\x01\x00\x08\x00data\x00\x00\x00\x00"
+    )
+    r = client.post(
+        "/api/mdt/transcribe",
+        files=[("file", ("dictation.wav", wav, "audio/wav"))],
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["text"] == "Chest X-ray clear, continue ART."
+    assert not Path(seen["path"]).exists()
+
+    anon = client.post(
+        "/api/mdt/transcribe",
+        files=[("file", ("dictation.wav", wav, "audio/wav"))],
+    )
+    assert anon.status_code == 401
+
+
 def test_audio_detected_by_extension(client: TestClient):
     """Voice notes stay audio even when the uploader labels them octet-stream."""
     token = admin_token(client)

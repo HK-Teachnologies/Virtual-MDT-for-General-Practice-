@@ -8,10 +8,12 @@ import {
   deleteVisit,
   downloadAttachment,
   getPatient,
+  transcribeAudioNote,
   updateSection,
   updateTranscription,
   updateVisit,
 } from '../lib/api';
+import VoiceRecorder from './VoiceRecorder';
 import type { ApiAttachment, ApiSection, ApiTranscription, ApiVisit } from '../lib/types';
 import VisitSummaryGate from './VisitSummaryGate';
 
@@ -82,8 +84,8 @@ export default function VisitCard({
   const [resultPreviews, setResultPreviews] = useState<{ name: string; url: string }[]>([]);
   const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
-  const [dictating, setDictating] = useState(false);
-  const [dictLang, setDictLang] = useState('en-US');
+  const [transcribing, setTranscribing] = useState(false);
+  const [voiceKey, setVoiceKey] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const photoInput = useRef<HTMLInputElement | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -91,13 +93,11 @@ export default function VisitCard({
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recognitionRef = useRef<{ stop: () => void } | null>(null);
 
   useEffect(
     () => () => {
       if (timerRef.current) clearInterval(timerRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
-      recognitionRef.current?.stop();
       resultPreviews.forEach((p) => URL.revokeObjectURL(p.url));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -177,54 +177,25 @@ export default function VisitCard({
     }
   }
 
-  function stopDictation() {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    setDictating(false);
-  }
-
-  function toggleDictation() {
-    if (dictating) {
-      stopDictation();
-      return;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!Ctor) {
-      setError('Live dictation is not supported in this browser — record an audio note instead, or type.');
-      return;
-    }
+  async function transcribeDictation(blob: Blob) {
+    // Record-and-transcribe: the clip goes to Meta's transcription model
+    // (never a browser speech API) and the text lands in the notes field
+    // for editing before saving.
+    if (!token) return;
+    setTranscribing(true);
+    setError(null);
     try {
-      const rec = new Ctor();
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.lang = dictLang;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rec.onresult = (e: any) => {
-        let spoken = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) spoken += e.results[i][0].transcript;
-        }
-        if (spoken.trim()) {
-          setNewContent((prev) => (prev ? `${prev} ${spoken.trim()}` : spoken.trim()));
-        }
-      };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rec.onerror = (e: any) => {
-        if (e?.error === 'language-not-supported') {
-          setError('That dictation language is not supported in this browser — try English (US).');
-        } else if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
-          setError('Microphone blocked for dictation — check the browser permission, or type instead.');
-        }
-      };
-      rec.onend = () => setDictating(false);
-      recognitionRef.current = rec;
-      rec.start();
-      setDictating(true);
-      setError(null);
-    } catch {
-      setError('Could not start dictation — record an audio note instead, or type.');
+      const text = await transcribeAudioNote(token, blob);
+      if (text.trim()) {
+        setNewContent((prev) => (prev ? `${prev} ${text.trim()}` : text.trim()));
+      } else {
+        setError('Nothing was transcribed — try again, or type the notes.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not transcribe the recording.');
     }
+    setTranscribing(false);
+    setVoiceKey((k) => k + 1);
   }
 
   async function toggleResultRecording() {
@@ -271,7 +242,6 @@ export default function VisitCard({
 
   function cancelResult() {
     if (recording) recorderRef.current?.stop();
-    stopDictation();
     resultPreviews.forEach((p) => URL.revokeObjectURL(p.url));
     setResultPreviews([]);
     setResultFiles([]);
@@ -332,8 +302,7 @@ export default function VisitCard({
 
   async function submitSection(e: FormEvent) {
     e.preventDefault();
-    if (!token || recording) return;
-    if (dictating) stopDictation();
+    if (!token || recording || transcribing) return;
     const text = newContent.trim();
     if (!text && resultFiles.length === 0) return;
     setBusy(true);
@@ -676,29 +645,16 @@ export default function VisitCard({
                 >
                   Attach files
                 </button>
-                <button
-                  className={dictating ? 'btn btn-danger' : 'btn'}
-                  type="button"
-                  onClick={toggleDictation}
-                  disabled={busy || recording}
-                >
-                  {dictating ? 'Stop dictation' : 'Dictate'}
-                </button>
-                <select
-                  aria-label="Dictation language"
-                  value={dictLang}
-                  onChange={(e) => setDictLang(e.target.value)}
-                  disabled={busy || recording || dictating}
-                >
-                  <option value="en-US">English (US)</option>
-                  <option value="en-GB">English (UK)</option>
-                  <option value="sw">Kiswahili</option>
-                </select>
+                <VoiceRecorder
+                  key={voiceKey}
+                  onRecording={transcribeDictation}
+                  onClear={() => {}}
+                />
                 <button
                   className={recording ? 'btn btn-danger' : 'btn'}
                   type="button"
                   onClick={toggleResultRecording}
-                  disabled={busy || dictating}
+                  disabled={busy || transcribing}
                 >
                   {recording
                     ? `Stop recording (${Math.floor(recSeconds / 60)}:${String(recSeconds % 60).padStart(2, '0')})`
@@ -727,8 +683,8 @@ export default function VisitCard({
                   e.target.value = '';
                 }}
               />
-              {dictating && (
-                <p className="muted">Listening… speak and the words appear in the notes above.</p>
+              {transcribing && (
+                <p className="muted">Transcribing… the text appears in the notes above shortly.</p>
               )}
               {recording && (
                 <p className="muted">
@@ -757,7 +713,11 @@ export default function VisitCard({
               </p>
             </div>
             <div className="row">
-              <button className="btn btn-primary" type="submit" disabled={busy || recording}>
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={busy || recording || transcribing}
+              >
                 {busy ? 'Saving…' : 'Add'}
               </button>
               <button className="btn" type="button" onClick={cancelResult}>

@@ -20,8 +20,9 @@ Hackathon (26 Oct – 4 Nov 2026).
 
 - Case capture: photo / dictation / upload / typed notes with AI transcription.
 - Add Result on any visit: typed lab/imaging/vitals notes plus photo capture,
-  file attach, live dictation (English US/UK, Kiswahili), and audio recording —
-  visits auto-refresh as machine reads and summaries land.
+  file attach, record-and-transcribe dictation (Muse Voice Transcribe — no
+  browser speech API ever sees patient audio), and audio recording — visits
+  auto-refresh as machine reads and summaries land.
 - Verification markers ("N reads to verify") on visit cards and patient cards;
   visits can be deleted with confirmation; patient list search.
 - MDT agent: specialty planning, patient + guideline RAG, draft, self-check audit.
