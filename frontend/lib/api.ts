@@ -214,6 +214,14 @@ export async function deletePatient(token: string, patientId: string): Promise<v
   if (!res.ok) throw new Error(await readError(res));
 }
 
+export async function deleteVisit(token: string, visitId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/patients/visits/${visitId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+}
+
 export async function deleteSection(token: string, sectionId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/patients/sections/${sectionId}`, {
     method: 'DELETE',

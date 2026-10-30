@@ -5,7 +5,9 @@ import {
   addSection,
   addVisitAttachments,
   deleteSection,
+  deleteVisit,
   downloadAttachment,
+  getPatient,
   updateSection,
   updateTranscription,
   updateVisit,
@@ -63,12 +65,14 @@ export default function VisitCard({
   token,
   readOnly = false,
   onChange,
+  onDelete,
 }: {
   patientId: string;
   visit: ApiVisit;
   token: string | null;
   readOnly?: boolean;
   onChange?: (v: ApiVisit) => void;
+  onDelete?: (visitId: string) => void;
 }) {
   const [visit, setVisit] = useState(initial);
   const [adding, setAdding] = useState(false);
@@ -79,6 +83,8 @@ export default function VisitCard({
   const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
   const [dictating, setDictating] = useState(false);
+  const [dictLang, setDictLang] = useState('en-US');
+  const [syncing, setSyncing] = useState(false);
   const photoInput = useRef<HTMLInputElement | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -97,6 +103,52 @@ export default function VisitCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  useEffect(() => {
+    // Self-heal after capture: machine reads and the patient summary land
+    // via background tasks, so re-read the visit until they arrive instead
+    // of leaving "Reading file…" on screen until a manual reload.
+    if (!token || readOnly) return;
+    const needsReads = visit.attachments.some((a) => !a.transcription);
+    const needsSummary = !visit.patient_summary?.en;
+    if (!needsReads && !needsSummary) return;
+    setSyncing(true);
+    let cancelled = false;
+    let tries = 0;
+    const timer = setInterval(async () => {
+      tries += 1;
+      try {
+        const fresh = (await getPatient(patientId, token))?.visits.find(
+          (v) => v.id === visit.id,
+        );
+        if (cancelled) return;
+        if (fresh) {
+          apply(fresh);
+          const done =
+            fresh.attachments.every((a) => a.transcription) &&
+            Boolean(fresh.patient_summary?.en);
+          if (done || tries >= 15) {
+            clearInterval(timer);
+            setSyncing(false);
+          }
+        } else if (tries >= 15) {
+          clearInterval(timer);
+          setSyncing(false);
+        }
+      } catch {
+        if (tries >= 15) {
+          clearInterval(timer);
+          setSyncing(false);
+        }
+      }
+    }, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      setSyncing(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visit.id, token]);
 
   function addResultFiles(picked: File[]) {
     if (picked.length === 0) return;
@@ -146,7 +198,7 @@ export default function VisitCard({
       const rec = new Ctor();
       rec.continuous = true;
       rec.interimResults = true;
-      rec.lang = 'en-US';
+      rec.lang = dictLang;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rec.onresult = (e: any) => {
         let spoken = '';
@@ -155,6 +207,14 @@ export default function VisitCard({
         }
         if (spoken.trim()) {
           setNewContent((prev) => (prev ? `${prev} ${spoken.trim()}` : spoken.trim()));
+        }
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rec.onerror = (e: any) => {
+        if (e?.error === 'language-not-supported') {
+          setError('That dictation language is not supported in this browser — try English (US).');
+        } else if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
+          setError('Microphone blocked for dictation — check the browser permission, or type instead.');
         }
       };
       rec.onend = () => setDictating(false);
@@ -329,6 +389,23 @@ export default function VisitCard({
     }
   }
 
+  async function removeVisit() {
+    if (
+      !token ||
+      !window.confirm(
+        `Delete the visit of ${visit.visit_date} with all its notes, sections, and files? This cannot be undone.`,
+      )
+    )
+      return;
+    setError(null);
+    try {
+      await deleteVisit(token, visit.id);
+      onDelete?.(visit.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete.');
+    }
+  }
+
   async function saveNotes() {
     if (!token) return;
     setBusy(true);
@@ -357,12 +434,23 @@ export default function VisitCard({
     items: visit.sections.filter((s) => s.section === type),
   })).filter((g) => g.items.length > 0);
 
+  const readingCount = visit.attachments.filter((a) => !a.transcription).length;
+  const unverifiedCount = visit.attachments.filter(
+    (a) => a.transcription && !a.transcription.verified,
+  ).length;
+
   return (
     <article className="visit-card">
       <div className="timeline-title">{visit.clinic?.name ?? 'Visit'}</div>
       <div className="timeline-date">
         {visit.visit_date}{' '}
-        <span className="badge">{SOURCE_LABEL[visit.source] ?? visit.source}</span>
+        <span className="badge">{SOURCE_LABEL[visit.source] ?? visit.source}</span>{' '}
+        {readingCount > 0 && <span className="badge badge-pending">Reading files…</span>}{' '}
+        {unverifiedCount > 0 && (
+          <span className="badge badge-pending">
+            {unverifiedCount} read{unverifiedCount === 1 ? '' : 's'} to verify
+          </span>
+        )}
       </div>
 
       {editingNotes ? (
@@ -388,9 +476,14 @@ export default function VisitCard({
         <>
           <p>{visit.notes || <span className="muted">(no notes)</span>}</p>
           {!readOnly && (
-            <button className="link-btn" type="button" onClick={() => setEditingNotes(true)}>
-              Edit notes
-            </button>
+            <div className="row">
+              <button className="link-btn" type="button" onClick={() => setEditingNotes(true)}>
+                Edit notes
+              </button>
+              <button className="link-btn" type="button" onClick={removeVisit}>
+                Delete visit
+              </button>
+            </div>
           )}
         </>
       )}
@@ -485,6 +578,8 @@ export default function VisitCard({
           ))}
         </ul>
       )}
+
+      {syncing && <p className="muted">Checking for AI reads…</p>}
 
       {grouped.map((g) => (
         <section key={g.type}>
@@ -589,6 +684,16 @@ export default function VisitCard({
                 >
                   {dictating ? 'Stop dictation' : 'Dictate'}
                 </button>
+                <select
+                  aria-label="Dictation language"
+                  value={dictLang}
+                  onChange={(e) => setDictLang(e.target.value)}
+                  disabled={busy || recording || dictating}
+                >
+                  <option value="en-US">English (US)</option>
+                  <option value="en-GB">English (UK)</option>
+                  <option value="sw">Kiswahili</option>
+                </select>
                 <button
                   className={recording ? 'btn btn-danger' : 'btn'}
                   type="button"

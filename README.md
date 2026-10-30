@@ -19,6 +19,11 @@ Hackathon (26 Oct – 4 Nov 2026).
 ## Built during the hackathon (26 Oct – 4 Nov 2026)
 
 - Case capture: photo / dictation / upload / typed notes with AI transcription.
+- Add Result on any visit: typed lab/imaging/vitals notes plus photo capture,
+  file attach, live dictation (English US/UK, Kiswahili), and audio recording —
+  visits auto-refresh as machine reads and summaries land.
+- Verification markers ("N reads to verify") on visit cards and patient cards;
+  visits can be deleted with confirmation; patient list search.
 - MDT agent: specialty planning, patient + guideline RAG, draft, self-check audit.
 - Brief screen with persisted approve / edit / reject sign-off and safety panels
   (flagged interactions, overdue checks, removed-by-self-check audit).
@@ -52,6 +57,50 @@ presenting with a two-week cough. The agent flags TB screening, a possible
 interaction to check if TB treatment starts, and an overdue kidney function test —
 each with an evidence-source badge (MoH guideline / patient record / clinical
 reasoning) and a guideline citation that names the exact page and opens it.
+
+## Where the AI models are used
+
+All model access goes through one OpenAI-compatible path
+(`backend/app/llm/client.py`, LiteLLM), so the provider is swappable without
+touching features. `LLM_PROVIDER=echo` returns deterministic canned output for
+the test suite — no keys, no network.
+
+| Capability | Model | Notes |
+|---|---|---|
+| Brief plan, draft, self-check | Muse Spark (`LLM_MODEL`, default `openai/muse-spark-1.3`) | JSON-mode calls in `mdt.run_brief`; prompts in `backend/app/llm/prompts.py` |
+| Photo reads | Muse Spark vision (`LLM_VISION_MODEL`, falls back to `LLM_MODEL`) | Transcribes slips and books; every read needs staff verification |
+| Dictation and voice notes | Muse Voice Transcribe (`LLM_TRANSCRIBE_MODEL`, default `muse-voice-transcribe-1.0`) | Consults in English as-is; patient answers in Luganda/Kiswahili/English become English text with the original kept |
+| Visit and patient summaries, question translation | Muse Spark | Trilingual summaries; overall message from signed-off points only |
+| Embeddings | bge-base-en-v1.5 on the self-hosted `model_server/` (or `LLM_EMBED_MODEL` via API) | Patient and guideline vectors; `LLM_EMBED_DIM` must match (768) |
+| Guideline reranking | ms-marco-MiniLM-L-6-v2 cross-encoder on `model_server/` | Top 4 of 20 candidates per query; falls back to vector order if down |
+| Deterministic, no model | — | Referral letters, PDF/text extraction, PII redaction |
+
+## How information flows
+
+1. **Capture** — typed notes, visit sections, and files land on a visit
+   (`POST /api/patients/{id}/visits`, sections, `…/visits/{visit_id}/attachments`).
+2. **Machine reads** — `mdt.transcribe_attachment` reads each file (vision for
+   photos, speech-to-text for audio — the audio is then deleted and never
+   served, deterministic parse for PDF/TXT/MD) into a transcription shown as
+   *AI read — verify* until staff confirm or correct it.
+3. **Index and summarize** — `mdt.embed_patient_chunks` embeds notes, sections,
+   and reads into per-patient vectors; `mdt.summarize_visit` drafts the
+   trilingual visit summary. Any later content resets it to draft.
+4. **Review** — `mdt.run_brief`: plan (specialties chosen only from the Admin
+   list) → retrieve (patient vectors plus guideline vectors, cross-encoder
+   rerank) → draft → self-check (unsupported points removed with reasons kept
+   visible). Prompts carry de-identified text only: age, never date of birth;
+   names, phones, and emails redacted — photograph clinical content, not name
+   labels, since redaction cannot clean image pixels.
+5. **Sign-off** — approve / edit / reject is persisted per item; only
+   approved/edited wording flows downstream.
+6. **Send, refer, release** — specialist reviews by email link; deterministic
+   referral letters whose history includes photo and dictation reads; and the
+   release gates that publish summaries and letters to the patient portal.
+
+Steps 2–4 run as Celery tasks (Redis queue, `worker` service in compose).
+Without a running worker nothing after capture processes — run one locally
+(see below) or set `CELERY_TASK_ALWAYS_EAGER=1` for inline execution.
 
 ## Specialist review workflow
 
@@ -116,7 +165,8 @@ every summary starts as `draft` and the portal serves `released` ones:
    they land as drafts for review, never published directly.
 5. **Referral letters** — After sign-off, the doctor drafts a referral letter
    from the approved/edited points only (deterministic text, no model call):
-   demographics, recent history, agreed findings, flagged interactions,
+   demographics, recent history (including photo and dictation machine reads,
+   tagged verified or unverified), agreed findings, flagged interactions,
    overdue checks, and the reason. Each letter is released like a summary and
    appears in the portal, so the patient can present it at any facility they
    end up attending — even a different hospital than intended.
@@ -129,7 +179,9 @@ every summary starts as `draft` and the portal serves `released` ones:
 | Backend  | FastAPI (Python)                            |
 | Database | PostgreSQL (pgvector-enabled for retrieval) |
 | AI       | Meta Model API: Muse Spark (multimodal + agent), Muse Voice Transcribe |
-| Deploy   | Docker Compose + Caddy                      |
+| Retrieval| Self-hosted model server: bge-base embeddings + MiniLM cross-encoder rerank |
+| Queue    | Redis + Celery (transcription, indexing, summaries, briefs) |
+| Deploy   | Docker Compose + Caddy (same-origin: `/api/*` → backend, rest → frontend) |
 
 ## Repo layout
 
@@ -186,7 +238,18 @@ uvicorn app.main:app --reload
 cd frontend
 npm install
 npm run dev
+
+# Background worker (new terminal — needs Redis running; transcriptions,
+# summaries, and briefs only process with this running, otherwise set
+# CELERY_TASK_ALWAYS_EAGER=1 on the API process for inline execution)
+cd backend
+celery -A app.mdt.tasks.celery_app worker --loglevel=info
 ```
+
+> Frontend dev runs on another port than the API, so set
+> `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000` (or your backend origin) before
+> `npm run dev` — otherwise the browser cannot reach the backend. Compose does
+> not need this (same-origin under Caddy).
 
 ## Backend API
 
@@ -199,6 +262,24 @@ Users and auth (FastAPI, served same-origin under `/api` in compose):
 
 Backend settings come from `deployment/docker-compose/.env` (see `.env.example`):
 `SECRET_KEY` signs the login tokens — set a long random value, never commit it.
+
+Patient records and result sections:
+
+- `POST /api/patients/{patient_id}/visits/{visit_id}/sections` — `{section, content}` → typed lab/imaging/vitals/note entry
+- `POST /api/patients/visits/{visit_id}/attachments` — multipart `files` → photo/dictation/document attached to an existing visit (same AI read as capture)
+- `DELETE /api/patients/visits/{visit_id}` — removes a visit with its sections, files, and reads
+- `GET /api/patients` and `GET /api/patients/{id}` — carry `open_review_count` and `unverified_read_count` triage signals
+
+## Testing
+
+Backend (echo provider — no keys, no network, tasks run inline):
+
+```bash
+cd backend
+python -m pytest tests -q
+```
+
+Frontend has no test harness; type-check with `npx tsc --noEmit` from `frontend/`.
 
 ## Safety and scope
 

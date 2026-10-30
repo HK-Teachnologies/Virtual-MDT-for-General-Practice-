@@ -107,9 +107,31 @@ def list_patients(
         .group_by(Patient.id)
         .order_by(Patient.created_at.desc())
     ).all()
+    ids = [patient.id for patient, _ in rows]
+    open_counts: dict[str, int] = {}
+    unverified_counts: dict[str, int] = {}
+    if ids:
+        open_counts = dict(
+            db.execute(
+                select(Review.patient_id, func.count(Review.id))
+                .where(Review.patient_id.in_(ids), Review.status != "closed")
+                .group_by(Review.patient_id)
+            ).all()
+        )
+        unverified_counts = dict(
+            db.execute(
+                select(Visit.patient_id, func.count(Transcription.id))
+                .join(Attachment, Attachment.visit_id == Visit.id)
+                .join(Transcription, Transcription.attachment_id == Attachment.id)
+                .where(Visit.patient_id.in_(ids), Transcription.verified.is_(False))
+                .group_by(Visit.patient_id)
+            ).all()
+        )
     patients = []
     for patient, visit_count in rows:
         patient.visit_count = visit_count
+        patient.open_review_count = open_counts.get(patient.id, 0)
+        patient.unverified_read_count = unverified_counts.get(patient.id, 0)
         patients.append(patient)
     return patients
 
@@ -141,6 +163,20 @@ def load_patient_detail(db: Session, patient_id: str) -> Patient:
         visit.released_by_name = names.get(visit.released_by or "")
     patient.visits = visits
     patient.visit_count = len(visits)
+    patient.unverified_read_count = sum(
+        1
+        for visit in visits
+        for a in visit.attachments
+        if a.transcription and not a.transcription.verified
+    )
+    patient.open_review_count = (
+        db.scalar(
+            select(func.count(Review.id)).where(
+                Review.patient_id == patient_id, Review.status != "closed"
+            )
+        )
+        or 0
+    )
     return patient
 
 
@@ -498,6 +534,44 @@ def update_section(
         safe_delay(embed_patient_chunks, visit.patient_id)
         safe_delay(summarize_visit, visit.id)
     return section
+
+
+@router.delete("/visits/{visit_id}")
+def delete_visit(
+    visit_id: str,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Remove one visit with its sections, files, and machine reads.
+
+    Files leave the disk too; nothing orphaned. Use for duplicate or
+    mistaken captures — the whole patient stays intact."""
+    visit = db.get(Visit, visit_id)
+    if visit is None:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    patient_id = visit.patient_id
+    attachments = db.scalars(
+        select(Attachment).where(Attachment.visit_id == visit.id)
+    ).all()
+    file_paths = [a.stored_path for a in attachments]
+    attachment_ids = [a.id for a in attachments]
+    if attachment_ids:
+        db.execute(
+            delete(Transcription).where(
+                Transcription.attachment_id.in_(attachment_ids)
+            )
+        )
+        db.execute(delete(Attachment).where(Attachment.id.in_(attachment_ids)))
+    db.execute(delete(VisitSection).where(VisitSection.visit_id == visit.id))
+    db.delete(visit)
+    db.commit()
+    for path in file_paths:
+        try:
+            Path(path).unlink(missing_ok=True)
+        except OSError:
+            continue
+    safe_delay(embed_patient_chunks, patient_id)
+    return {"deleted": True}
 
 
 @router.delete("/sections/{section_id}")

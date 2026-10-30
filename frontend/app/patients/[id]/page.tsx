@@ -304,6 +304,12 @@ export default function PatientRecord() {
                     ),
                   })
                 }
+                onDelete={(visitId) =>
+                  setPatient({
+                    ...patient,
+                    visits: patient.visits.filter((old) => old.id !== visitId),
+                  })
+                }
               />
             ))
         )}

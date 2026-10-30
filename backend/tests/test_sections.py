@@ -125,6 +125,50 @@ def test_visit_attachments_upload(client: TestClient, tmp_path, monkeypatch):
     assert anon.status_code == 401
 
 
+def test_delete_visit_removes_sections_files_and_reads(
+    client: TestClient, tmp_path, monkeypatch
+):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    headers = _headers(client)
+    patient_id = _patient(client, "014")
+    visit_id = _visit(client, patient_id)
+    client.post(
+        f"/api/patients/{patient_id}/visits/{visit_id}/sections",
+        json={"section": "lab", "content": "CD4 350."},
+        headers=headers,
+    )
+    uploaded = client.post(
+        f"/api/patients/visits/{visit_id}/attachments",
+        files=[("files", ("slip.png", b"\x89PNG fakepng", "image/png"))],
+        headers=headers,
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    attachment_id = uploaded.json()["attachments"][0]["id"]
+
+    removed = client.delete(f"/api/patients/visits/{visit_id}", headers=headers)
+    assert removed.status_code == 200, removed.text
+
+    read = client.get(f"/api/patients/{patient_id}", headers=headers)
+    assert read.json()["visits"] == []
+
+    gone = client.get(
+        f"/api/patients/visits/{visit_id}/attachments/{attachment_id}",
+        headers=headers,
+    )
+    assert gone.status_code == 404
+
+    missing = client.delete(
+        "/api/patients/visits/00000000-0000-0000-0000-000000000000",
+        headers=headers,
+    )
+    assert missing.status_code == 404
+
+    anon = client.delete(f"/api/patients/visits/{visit_id}")
+    assert anon.status_code == 401
+
+
 def test_update_visit(client: TestClient):
     headers = _headers(client)
     patient_id = _patient(client, "012")

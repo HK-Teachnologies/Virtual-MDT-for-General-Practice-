@@ -29,6 +29,12 @@ export default function Guide() {
           cannot sign in yet. Sex, district, area of residence, and date of birth help
           the AI brief. Open the patient card to start their record.
         </p>
+        <p>
+          Use <strong>Find a patient</strong> to search by name, phone, or district.
+          Cards carry attention badges: <strong>Open review</strong> while a
+          specialist review is outstanding, and <strong>N reads to verify</strong>{' '}
+          while machine reads wait for your check.
+        </p>
       </Step>
 
       <Step n="2" title="Capture a visit">
@@ -57,9 +63,22 @@ export default function Guide() {
         <p>
           After saving, every machine read (transcription or extracted text) appears under
           the visit with <strong>Mark verified</strong> / <strong>Correct text</strong>
-          actions — confirm or correct it so the record stays trustworthy. Use
-          <strong>+ Add lab / imaging / note</strong> on any visit card to append
-          standard sections later.
+          actions — confirm or correct it so the record stays trustworthy. The visit
+          card re-reads itself while reads and the summary arrive
+          (<strong>Checking for AI reads…</strong>), so there is no need to reload.
+          Visits with outstanding reads carry a badge in their header, and a whole
+          visit can be removed with <strong>Delete visit</strong> after confirmation.
+        </p>
+        <p>
+          Use <strong>+ Add lab / imaging / note</strong> on any visit card to append
+          standard sections (lab, imaging, vitals, and more) later. The form takes
+          typed notes plus any combination of <strong>Take a photo</strong> (camera
+          on a phone), <strong>Attach files</strong>, <strong>Dictate</strong>{' '}
+          (live speech-to-text in English US/UK or Kiswahili — pick the language
+          first), and <strong>Record audio</strong> (attached and transcribed for
+          verification). Photos and recordings get the same AI read as capture,
+          and their verified text feeds the review, the referral letter, and the
+          patient summary.
         </p>
       </Step>
 
@@ -166,7 +185,9 @@ export default function Guide() {
           <strong> New referral letter</strong>: enter the destination facility and
           reason, then release the drafted letter. It appears in the patient portal,
           so the patient can show it at any facility they attend — even a different
-          hospital than intended.
+          hospital than intended. The letter&apos;s history includes photo and
+          dictation reads (tagged verified or unverified), so the receiving
+          facility sees what the slip and voice note said.
         </p>
         <p>
           Doctors can also send follow-up questions from the patient record,

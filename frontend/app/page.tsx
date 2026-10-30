@@ -21,6 +21,17 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const visible = (patients ?? []).filter((p) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return [p.full_name, p.phone, p.email, p.district]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .includes(q);
+  });
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login');
@@ -160,21 +171,50 @@ export default function Home() {
       ) : patients.length === 0 ? (
         <p className="muted">No patients registered yet.</p>
       ) : (
-        <div className="card-grid">
-          {patients.map((p) => (
-            <Link key={p.id} className="card" href={`/patients/${p.id}`}>
-              <h2>{p.full_name}</h2>
-              <p>{p.phone ?? 'No phone on record'}</p>
-              <p>{p.email ?? 'No email on record'}</p>
-              <p>{p.district ?? 'No district on record'}</p>
-              <p className="muted">
-                {(p.visit_count ?? p.visits.length) === 1
-                  ? '1 visit on record'
-                  : `${p.visit_count ?? p.visits.length} visits on record`}
-              </p>
-            </Link>
-          ))}
-        </div>
+        <>
+          <div className="field">
+            <label htmlFor="patient-search">Find a patient</label>
+            <input
+              id="patient-search"
+              type="text"
+              placeholder="Name, phone, or district…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          {visible.length === 0 ? (
+            <p className="muted">No patients match “{query.trim()}”.</p>
+          ) : (
+            <div className="card-grid">
+              {visible.map((p) => (
+                <Link key={p.id} className="card" href={`/patients/${p.id}`}>
+                  <h2>{p.full_name}</h2>
+                  {(p.open_review_count ?? 0) > 0 && (
+                    <p>
+                      <span className="badge badge-pending">Open review</span>
+                    </p>
+                  )}
+                  {(p.unverified_read_count ?? 0) > 0 && (
+                    <p>
+                      <span className="badge badge-pending">
+                        {p.unverified_read_count} read{p.unverified_read_count === 1 ? '' : 's'} to
+                        verify
+                      </span>
+                    </p>
+                  )}
+                  <p>{p.phone ?? 'No phone on record'}</p>
+                  <p>{p.email ?? 'No email on record'}</p>
+                  <p>{p.district ?? 'No district on record'}</p>
+                  <p className="muted">
+                    {(p.visit_count ?? p.visits.length) === 1
+                      ? '1 visit on record'
+                      : `${p.visit_count ?? p.visits.length} visits on record`}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

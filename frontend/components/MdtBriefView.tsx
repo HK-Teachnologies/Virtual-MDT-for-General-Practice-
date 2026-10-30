@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { API_BASE } from '../lib/api';
 import { interactionLine, modelLine, overdueCheckLine, sourceLabel } from '../lib/sources';
 import type { BriefItem, CitedLabel, MdtBrief } from '../lib/types';
@@ -63,6 +63,14 @@ export default function MdtBriefView({
   const [copied, setCopied] = useState(false);
   const [signOffError, setSignOffError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    },
+    [],
+  );
 
   async function setStatus(id: string, status: BriefItem['status']) {
     setSignOffError(null);
@@ -126,6 +134,8 @@ export default function MdtBriefView({
     try {
       await navigator.clipboard.writeText(lines.join('\n'));
       setCopied(true);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 2500);
     } catch {
       setCopied(false);
     }

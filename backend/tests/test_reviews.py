@@ -174,6 +174,67 @@ def test_review_send_respond_close(client: TestClient):
     assert r.status_code == 400, r.text
 
 
+def test_patient_list_carries_attention_counts(
+    client: TestClient, tmp_path, monkeypatch
+):
+    """Triage signals: open reviews and unverified machine reads per patient."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    admin = admin_token(client)
+    requester_id, requester_token = _staff_and_token(
+        client, admin, "triage-requester@example.com"
+    )
+    specialist_id, _ = _staff_and_token(
+        client, admin, "triage-specialist@example.com", role="pharmacist"
+    )
+    spec = _specialty(client, admin, "Triage Spec")
+    patient = _patient(client, requester_token, "000099")
+    visit = client.post(
+        f"/api/patients/{patient['id']}/visits",
+        data={"notes": "Review.", "visit_date": "2026-10-29"},
+        files=[("files", ("slip.png", b"\x89PNG fakepng", "image/png"))],
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert visit.status_code == 201, visit.text
+    attachment_id = visit.json()["attachments"][0]["id"]
+
+    listed = client.get(
+        "/api/patients", headers={"Authorization": f"Bearer {requester_token}"}
+    )
+    row = next(p for p in listed.json() if p["id"] == patient["id"])
+    assert row["unverified_read_count"] == 1
+    assert row["open_review_count"] == 0
+
+    review = _open_review(
+        client, specialist_id, requester_token, patient["id"], spec["id"]
+    )
+    listed = client.get(
+        "/api/patients", headers={"Authorization": f"Bearer {requester_token}"}
+    )
+    row = next(p for p in listed.json() if p["id"] == patient["id"])
+    assert row["open_review_count"] == 1
+
+    verified = client.patch(
+        f"/api/mdt/transcriptions/{attachment_id}",
+        json={"verified": True},
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert verified.status_code == 200, verified.text
+    closed = client.patch(
+        f"/api/reviews/{review['id']}",
+        json={"status": "closed"},
+        headers={"Authorization": f"Bearer {requester_token}"},
+    )
+    assert closed.status_code == 200, closed.text
+    listed = client.get(
+        "/api/patients", headers={"Authorization": f"Bearer {requester_token}"}
+    )
+    row = next(p for p in listed.json() if p["id"] == patient["id"])
+    assert row["unverified_read_count"] == 0
+    assert row["open_review_count"] == 0
+
+
 def _staff_and_token(client: TestClient, admin: str, email: str, role: str = "doctor"):
     _staff(client, admin, email, role)
     r = client.post("/api/auth/login", data={"username": email, "password": "staff12345"})

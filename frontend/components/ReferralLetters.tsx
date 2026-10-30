@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   createReferralLetter,
   listReferralLetters,
@@ -23,10 +23,18 @@ export default function ReferralLetters({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     listReferralLetters(token, runId).then(setLetters).catch(() => setLetters([]));
   }, [token, runId]);
+
+  useEffect(
+    () => () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    },
+    [],
+  );
 
   async function draft(data: {
     destination_facility: string;
@@ -61,6 +69,8 @@ export default function ReferralLetters({
     try {
       await navigator.clipboard.writeText(letter.letter_text);
       setCopiedId(letter.id);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopiedId(null), 2500);
     } catch {
       setCopiedId(null);
     }

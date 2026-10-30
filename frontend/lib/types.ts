@@ -314,6 +314,8 @@ export interface ApiVisit {
 export interface ApiPatient {
   id: string;
   full_name: string;
+  open_review_count: number;
+  unverified_read_count: number;
   date_of_birth: string | null;
   sex: string | null;
   phone: string | null;

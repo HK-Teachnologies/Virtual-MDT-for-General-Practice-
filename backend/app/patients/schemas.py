@@ -129,3 +129,7 @@ class PatientRead(BaseModel):
     visits: list[VisitRead] = []
     # The list endpoint omits full visits; this carries the count instead.
     visit_count: int = 0
+    # Attention signals for triage: still-open specialist reviews and
+    # machine reads waiting for staff verification.
+    open_review_count: int = 0
+    unverified_read_count: int = 0
