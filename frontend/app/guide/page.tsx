@@ -75,8 +75,9 @@ export default function Guide() {
           typed notes plus any combination of <strong>Take a photo</strong> (camera
           on a phone), <strong>Attach files</strong>, <strong>Dictate</strong>{' '}
           (record, tap stop, and the transcription appears in the notes for
-          editing — transcribed by Muse Voice Transcribe, the recording is
-          deleted), and <strong>Record audio</strong> (attached and transcribed
+          editing — transcribed by Meta&apos;s transcription model and then
+          deleted, never sent to the phone or browser vendor), and{' '}
+          <strong>Record audio</strong> (attached and transcribed
           for verification). Photos and recordings get the same AI read as
           capture, and their verified text feeds the review, the referral
           letter, and the patient summary.

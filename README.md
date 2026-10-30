@@ -61,10 +61,16 @@ reasoning) and a guideline citation that names the exact page and opens it.
 
 ## Where the AI models are used
 
-All model access goes through one OpenAI-compatible path
-(`backend/app/llm/client.py`, LiteLLM), so the provider is swappable without
-touching features. `LLM_PROVIDER=echo` returns deterministic canned output for
-the test suite — no keys, no network.
+Every AI call in this app goes to Meta's models or to the self-hosted
+retrieval server — Muse Spark (briefs, summaries, vision reads, translations),
+Muse Voice Transcribe (all dictation and voice notes), and the local
+embedding/rerank server. No third-party AI vendor ever sees patient content:
+there is no browser or phone-vendor speech recognition anywhere in the app
+(the old live-dictation path was removed for exactly this reason), and no
+OpenAI/Google endpoints. All model access goes through one OpenAI-compatible
+client (`backend/app/llm/client.py`, LiteLLM), so endpoints stay swappable
+without touching features. `LLM_PROVIDER=echo` returns deterministic canned
+output for the test suite — no keys, no network.
 
 | Capability | Model | Notes |
 |---|---|---|
@@ -307,6 +313,11 @@ Frontend has no test harness; type-check with `npx tsc --noEmit` from `frontend/
   server, so patient text stays inside the deployment for retrieval; only the
   de-identified case text and evidence excerpts go to the Meta Model API for
   planning, drafting, self-check, vision reads and transcription.
+- **Meta models only — no third-party AI vendors.** Every model call lands on
+  Meta's API or the self-hosted retrieval server. Patient audio is never sent
+  to a browser or phone-vendor speech API: the Add Result Dictate button
+  records locally and posts the clip to Meta's transcription model, which
+  returns text for editing.
 - **Voice is transcription fuel only.** Clinicians dictate in English and are
   transcribed as-is; patient voice notes (English, Luganda, or Kiswahili) are
   transcribed to English text. The audio file is deleted once transcription

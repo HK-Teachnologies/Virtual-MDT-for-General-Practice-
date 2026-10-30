@@ -30,4 +30,10 @@ uploads/
 *.db
 *.sqlite3
 
+# Throwaway probe scripts and scratch verification dirs — never commit
+*-tmp.py
+*-tmp.js
+.verify-tmp/
+verify-tmp.db
+
 frontend/tsconfig.tsbuildinfo
