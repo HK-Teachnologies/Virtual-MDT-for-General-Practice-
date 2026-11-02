@@ -19,9 +19,11 @@ export default function Guide() {
       <h1>Staff user guide</h1>
       <p className="muted">
         How staff use Virtual MDT, from registering a patient to closing a
-        specialist review. Patients get their own shorter guide inside the
-        portal (<strong>How to use this portal</strong>) — this page is the
-        clinical side.
+        specialist review — written for the medical officer at a district
+        hospital or Health Centre IV, or the intern doctor on night duty.
+        Patients get their own shorter guide inside the portal (
+        <strong>How to use this portal</strong>) — this page is the clinical
+        side.
       </p>
 
       <Step n="1" title="Register a patient">
@@ -111,6 +113,10 @@ export default function Guide() {
           exclude them, or pick specific people instead. While a review is open the record
           shows <strong>Sent - waiting for review</strong> and no new brief can be
           prepared.
+        </p>
+        <p>
+          Interns can send a case to their supervising doctor by adding a{' '}
+          <strong>Supervisor</strong> specialty in <strong>Admin → Specialties</strong>.
         </p>
       </Step>
 

@@ -4,8 +4,8 @@ A specialist team for every doctor, in every patient's language.
 
 Live deployment: https://virtualmdt.hk-technologies.net
 
-A medical officer at a district hospital or Health Centre IV
-district hospital or Health Centre IV photographs or dictates a complex case, and an
+A medical officer at a district hospital or Health Centre IV, or an intern
+doctor on night duty, photographs or dictates a complex case, and an
 AI agent prepares a structured, evidence-cited MDT brief — per-specialty concerns,
 drug-interaction flags, overdue screening checks, and questions for referral —
 which the clinician reviews, edits, and approves.
@@ -142,7 +142,8 @@ After the brief is ready, the case can be sent to specialists for input:
    specialties the brief is about come pre-ticked: everyone in a ticked
    specialty is notified, anyone can be unticked, and specific people can be
    hand-picked instead. Each recipient gets an email with a link that opens
-   the review directly once signed in.
+   the review directly once signed in. Interns can send a case to their
+   supervising doctor by adding a Supervisor specialty in Admin → Specialties.
 4. **Sent, not duplicated** — While a review is open (`pending`/`responded`),
    the patient page shows "Sent - waiting for review" with a link, and no new
    brief can be prepared. Close the review to start another round.
