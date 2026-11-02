@@ -8,7 +8,7 @@ date shown on each visit. "Today" means the date of your test run.
 
 ## Teopista Namubiru — hero demo case (HIV, diabetes, hypertension; Luganda only)
 
-Register: Full name `Teopista Namubiru`, phone `+256700000105`,
+Register: Full name `Teopista Namubiru`, phone `+256700000107`,
 email `teopista@example.com`, DOB `1965-06-20`, sex Female,
 district `Mukono`, area of residence (not recorded).
 

@@ -13,15 +13,16 @@ A specialist team for every doctor, in every patient's language.
 ## Why this matters
 
 Uganda has about one licensed doctor for every 6,400 people, concentrated in
-urban areas ([AllAfrica](https://allafrica.com/stories/202608180128.html)).
+urban areas ([UMDPC figures via Nile Post, Aug
+2026](https://allafrica.com/stories/202608180128.html)).
 Medical officers at district hospitals and HC IVs — and interns on night
 duty — manage patients with HIV, diabetes and hypertension alone. Records are
 on paper, and many patients speak Luganda or Kiswahili.
 
 ## Team
 
-- Ugandan clinician - Dr. Rugogoma Jesse
-- Product and build lead - Kawesi Hakim
+- Dr. Rugogoma Jesse  clinical lead, Makerere University College of Health Sciences (MakCHS)
+- Kawesi Hakim  product and build lead
 
 ## What makes it different
 
@@ -64,9 +65,7 @@ and hypertension, and speaks Luganda only. Her brief flags dolutegravir
 raising metformin levels, and tenofovir alongside a creatinine that has
 nearly doubled.
 
-![Teopista Namubiru's brief: sourced points, safety panels, and the self-check audit](docs/brief-teopista.png)
-
-![Teopista Namubiru's portal in Luganda: released summary and the doctor's answer](docs/portal-luganda.png)
+![MDT brief for a synthetic patient: sourced points, safety panels, and the self-check audit](docs/brief-hero.png)
 
 ## Built during the hackathon
 
