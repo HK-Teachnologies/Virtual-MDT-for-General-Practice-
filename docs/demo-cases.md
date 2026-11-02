@@ -6,7 +6,34 @@ date shown on each visit. "Today" means the date of your test run.
 
 ---
 
-## Patient A — hero demo case (multimorbidity + cough)
+## Teopista Namubiru — hero demo case (HIV, diabetes, hypertension; Luganda only)
+
+Register: Full name `Teopista Namubiru`, phone `+256700000105`,
+email `teopista@example.com`, DOB `1965-06-20`, sex Female,
+district `Mukono`, area of residence (not recorded).
+
+Known conditions: HIV (on ART), type 2 diabetes, hypertension.
+Medications: Tenofovir/lamivudine/dolutegravir (TDF/3TC/DTG) daily,
+Metformin daily, Amlodipine daily.
+Language: Luganda only — set the portal language to Luganda for the demo.
+
+### Visit 1 — 2026-09-10 — HIV/NCD clinic review
+Viral load suppressed, adherence to TLD good. Fasting glucose high, BP
+raised. Metformin and amlodipine continued. Kidney function (creatinine)
+requested; return in 1 month with the result.
+
+### Visit 2 — today — lab slip + MDT review
+Photograph the creatinine lab slip: creatinine nearly double the September
+value while on tenofovir. Metformin continued. MDT review requested.
+
+Expect the brief to flag dolutegravir raising metformin levels, and tenofovir
+alongside the nearly doubled creatinine — with pharmacy and HIV care
+involved, and the released Luganda summary plus the doctor's Luganda answer
+visible in the portal.
+
+---
+
+## Patient A — multimorbidity + cough
 
 Register: Full name `Demo Patient A`, phone `+256700000101`,
 email `demo-a@example.com`, DOB `1974-03-12`, sex Female,

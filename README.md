@@ -2,72 +2,105 @@
 
 A specialist team for every doctor, in every patient's language.
 
-Live deployment: https://virtualmdt.hk-technologies.net
-
-A medical officer at a district hospital or Health Centre IV, or an intern
-doctor on night duty, photographs or dictates a complex case, and an
-AI agent prepares a structured, evidence-cited MDT brief — per-specialty concerns,
-drug-interaction flags, overdue screening checks, and questions for referral —
-which the clinician reviews, edits, and approves.
+🎬 Demo video: [YouTube link]
+🌍 Live app: https://virtualmdt.hk-technologies.net
 
 > **Clinician-facing decision support only.** This tool does not diagnose,
 > prescribe, or advise patients. Every AI suggestion must be reviewed and signed
 > off by a qualified clinician. Hackathon development uses **synthetic data only**
 > — no real patient data.
 
-Built for the **Build for Your World** track of the Meta Global AI Developer
-Hackathon (26 Oct – 4 Nov 2026).
+## Why this matters
 
-## Built during the hackathon (26 Oct – 4 Nov 2026)
+Uganda has about one licensed doctor for every 6,400 people, concentrated in
+urban areas ([AllAfrica](https://allafrica.com/stories/202608180128.html)).
+Medical officers at district hospitals and HC IVs — and interns on night
+duty — manage patients with HIV, diabetes and hypertension alone. Records are
+on paper, and many patients speak Luganda or Kiswahili.
 
-- Case capture: photo / dictation / upload / typed notes with AI transcription.
-- Add Result on any visit: typed lab/imaging/vitals notes plus photo capture,
-  file attach, record-and-transcribe dictation (Muse Voice Transcribe — no
-  browser speech API ever sees patient audio), and audio recording — visits
-  auto-refresh as machine reads and summaries land.
-- Verification markers ("N reads to verify") on visit cards and patient cards;
-  visits can be deleted with confirmation; patient list search.
-- MDT agent: specialty planning, patient + guideline RAG, draft, self-check audit.
-- Brief screen with persisted approve / edit / reject sign-off and safety panels
-  (flagged interactions, overdue checks, removed-by-self-check audit).
-- Specialist reviews: specialty routing, email links, text/voice/photo responses,
-  pending → responded → closed, no-duplicate gate.
-- Guideline library: PDF upload, page-aware indexing, verified page citations.
-- Patient portal (OTP login) with release-gated AI visit summaries
-  (English/Kiswahili/Luganda), doctor–patient follow-up Q&A in all three
-  languages, patient-initiated Ask the doctor, and releasable referral
-  letters, clinics master, admin
-  user/specialty management, mobile drawer navigation, separate staff and
-  patient in-app guides, demo data seeding. Ask-the-doctor answers are open to every clinical role
-  (the non-clinical normal_user role is read-only); saving an answer emails
-  the patient a sign-in nudge when SMTP is configured — the Q&A itself stays
-  in the portal. There is no AI chat answering patients: patients ask
-  questions in their own language; a clinician answers every one. The Ask
-  the doctor panel carries a fixed safety notice (English, Kiswahili,
-  Luganda): the doctor replies in the portal, and danger signs mean going
-  to the nearest health facility now.
+## Team
 
-![MDT brief for Demo Patient A: sourced points, safety panels, and the self-check audit](docs/brief-hero.png)
+- Ugandan clinician - Dr. Rugogoma Jesse
+- Product and build lead - Kawesi Hakim
+
+## What makes it different
+
+- It reads handwritten notes: slips and patient-held books are photographed
+  and transcribed, and every machine read waits for staff verification.
+- A self-checking agent cites Ministry of Health guideline pages, with page
+  numbers verified in code — unsupported points are removed with reasons kept
+  visible.
+- A full Luganda/Kiswahili voice loop: patients dictate, doctors answer, and
+  the doctor checks every translation before sending.
+- There is no AI chat answering patients: patients see only what a doctor has
+  released, and a clinician answers every question.
 
 ## How it works
 
-1. **Capture** — Doctor photographs today's notes / patient-held books and dictates
-   the consultation.
-2. **Timeline** — AI structures the case and shows a short timeline of previous
-   visits; the doctor corrects it.
-3. **MDT review** — Doctor taps "Prepare MDT review". The agent selects relevant
-   specialties (e.g. HIV care, TB, cardiology, endocrinology, pharmacy, mental
-   health, nutrition), gathers cited evidence per specialty, and self-checks its
-   draft for unsupported claims.
-4. **Decision** — Doctor accepts, edits, or rejects each point, then manages the
-   patient or refers with the brief attached.
-5. Every item is marked **AI-suggested** or **clinician-approved** (audit trail).
+1. **Capture** — The medical officer (or intern on night duty) photographs
+   today's handwritten notes / patient-held books, dictates, uploads files, or
+   types — including lab, imaging, and vitals sections on any visit.
+2. **Verify the reads** — Every photo and recording gets an AI read shown as
+   *AI read — verify*; staff confirm or correct each one, and the visit
+   auto-refreshes as reads and summaries land.
+3. **MDT review** — "Prepare MDT review": the agent selects relevant
+   specialties, gathers cited guideline evidence per specialty, and self-checks
+   its draft for unsupported claims.
+4. **Sign off** — The doctor approves, edits, or rejects each point. Every
+   item is marked **AI-suggested** or **clinician-approved** (audit trail).
+5. **Specialist or supervisor review** — The case is sent for review by email
+   link (text/voice/photo replies); interns reach their supervising doctor
+   through a Supervisor specialty.
+6. **Referral letter** — A deterministic letter drafted from signed-off points
+   only, released for the patient to present at any facility.
+7. **Patient portal** — Released visit summaries and the overall message in
+   English, Kiswahili, and Luganda, plus Ask the doctor: patients ask in
+   their own language and a clinician answers every one.
 
-Demo scenario: a 52-year-old on ART for HIV, with hypertension and diabetes,
-presenting with a two-week cough. The agent flags TB screening, a possible
-interaction to check if TB treatment starts, and an overdue kidney function test —
-each with an evidence-source badge (MoH guideline / patient record / clinical
-reasoning) and a guideline citation that names the exact page and opens it.
+## Demo case: Teopista Namubiru
+
+Teopista Namubiru, 61, from Mukono, lives with HIV (on TDF/3TC/DTG), diabetes
+and hypertension, and speaks Luganda only. Her brief flags dolutegravir
+raising metformin levels, and tenofovir alongside a creatinine that has
+nearly doubled.
+
+![Teopista Namubiru's brief: sourced points, safety panels, and the self-check audit](docs/brief-teopista.png)
+
+![Teopista Namubiru's portal in Luganda: released summary and the doctor's answer](docs/portal-luganda.png)
+
+## Built during the hackathon
+
+- Everything in this repository was built during the hackathon; first commit
+  27 Oct 2026.
+- Built for the **Build for Your World** track of the Meta Global AI Developer
+  Hackathon (26 Oct – 4 Nov 2026).
+- One repository: Next.js frontend, FastAPI backend, self-hosted
+  embedding/rerank server, Docker Compose + Caddy deploy.
+
+## Clinical guidelines
+
+Guideline PDFs are uploaded by an admin (Admin → Guidelines) and are **not**
+shipped in this repo. Editions used for the demo:
+
+- Uganda Clinical Guidelines 2023
+- Consolidated Guidelines for the Prevention and Treatment of HIV and AIDS in
+  Uganda 2022
+- Practical Guideline for Dispensing at Lower Level Health Centres 2014
+
+Guidelines uploaded before page-aware indexing need one **Reindex** (Admin →
+Guidelines → Reindex) so brief citations carry verified page numbers.
+
+## Testing
+
+87 backend tests, all passing. Backend runs on the echo provider — no keys, no
+network, tasks run inline:
+
+```bash
+cd backend
+python -m pytest tests -q
+```
+
+Frontend has no test harness; type-check with `npx tsc --noEmit` from `frontend/`.
 
 ## Where the AI models are used
 
@@ -208,19 +241,8 @@ frontend/                  Next.js app
 backend/                   FastAPI app
 deployment/docker-compose/ docker-compose.yaml, Caddyfile, .env (local only, never committed)
 model_server/              local embedding + rerank server (sentence-transformers)
-docs/demo-cases.md         synthetic hero demo case (Patient A)
+docs/demo-cases.md         synthetic demo cases (Teopista Namubiru is the hero case)
 ```
-
-## Clinical guidelines
-
-Guideline PDFs are uploaded by an admin (Admin → Guidelines) and are **not**
-shipped in this repo. Editions used for the demo and acceptance run:
-
-- Uganda Clinical Guidelines 2023, Ministry of Health (test upload during
-  development; re-upload the licensed copy on each deployment).
-
-Guidelines uploaded before page-aware indexing need one **Reindex** (Admin →
-Guidelines → Reindex) so brief citations carry verified page numbers.
 
 ## Getting started
 
@@ -287,17 +309,6 @@ Patient records and result sections:
 - `POST /api/patients/visits/{visit_id}/attachments` — multipart `files` → photo/dictation/document attached to an existing visit (same AI read as capture)
 - `DELETE /api/patients/visits/{visit_id}` — removes a visit with its sections, files, and reads
 - `GET /api/patients` and `GET /api/patients/{id}` — carry `open_review_count` and `unverified_read_count` triage signals
-
-## Testing
-
-Backend (echo provider — no keys, no network, tasks run inline):
-
-```bash
-cd backend
-python -m pytest tests -q
-```
-
-Frontend has no test harness; type-check with `npx tsc --noEmit` from `frontend/`.
 
 ## Safety and scope
 
