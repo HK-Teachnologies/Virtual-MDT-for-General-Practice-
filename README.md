@@ -2,7 +2,7 @@
 
 A specialist team for every doctor, in every patient's language.
 
-🎬 Demo video: [YouTube link]
+🎬 Demo video: https://youtu.be/3zTH0grhkug
 🌍 Live app: https://virtualmdt.hk-technologies.net
 
 > **Clinician-facing decision support only.** This tool does not diagnose,
@@ -21,8 +21,8 @@ on paper, and many patients speak Luganda or Kiswahili.
 
 ## Team
 
-- Dr. Rugogoma Jesse  clinical lead, Makerere University College of Health Sciences (MakCHS)
-- Kawesi Hakim  product and build lead
+- Dr. Rugogoma Jesse - clinical lead, Makerere University College of Health Sciences (MakCHS)
+- Kawesi Hakim - product and build lead
 
 ## What makes it different
 
